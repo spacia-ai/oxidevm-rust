@@ -47,3 +47,12 @@ export async function mainThreadGap<T>(work: () => Promise<T>): Promise<{ readon
   const timer = setInterval(() => { const now = performance.now(); gap = Math.max(gap, now - last); last = now; }, 10);
   try { return { value: await work(), gapMs: Math.round(gap) }; } finally { clearInterval(timer); }
 }
+
+/** Copies a Rust fixture served beside the page into the VM at /workspace/t/<name>.wasm. */
+export async function stageFixture(vm: UserspaceVM, name: string): Promise<string> {
+  const response = await fetch(new URL(`fixtures/${name}.wasm`, document.baseURI));
+  if (!response.ok) throw new Error(`fixture ${name} is missing`);
+  const path = `t/${name}.wasm`;
+  await vm.workspace.writeFile(path, new Uint8Array(await response.arrayBuffer()));
+  return `/workspace/${path}`;
+}

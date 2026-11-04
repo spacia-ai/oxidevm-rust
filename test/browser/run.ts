@@ -52,6 +52,11 @@ await cp(join(root, "test/browser/page/tsconfig.json"), join(project, "tsconfig.
 await cp(join(root, "test/browser/page/main.ts"), join(project, "src/main.ts"));
 await cp(join(root, "test/browser/page/support.ts"), join(project, "src/support.ts"));
 await cp(join(root, "test/browser/suites", `${suite}.ts`), join(project, "src/suite.ts"));
+// The Rust fixtures, served beside the page so a suite can copy them into the VM and run them with rust-wasi.
+await mkdir(join(project, "public/fixtures"), { recursive: true });
+for (const name of ["fixture-import-probe", "fixture-binary-echo", "fixture-identity", "fixture-fsops"]) {
+  await cp(join(root, "target/wasm32-wasip1/release", `${name}.wasm`), join(project, "public/fixtures", `${name}.wasm`));
+}
 const added = await execute(process.execPath, [cli, "wasm", "add", "file:vendor/rust", "--yes", "--project", project, "--json"], { cwd: project });
 assert(added.stdout.includes('"kind":"result"'), `wasm add: ${added.stdout}`);
 await execute(process.execPath, [join(root, "node_modules/typescript/bin/tsc"), "-p", join(project, "tsconfig.json")], { cwd: project, maxBuffer: 16 * 1024 ** 2 }).catch((error: unknown) => {
