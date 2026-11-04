@@ -34,7 +34,7 @@ if (sha256(await readFile(join(root, "upstream/bridge-demo.wasm"))) !== first.ge
 
 // 3. The module release contains only its own files, and nothing local or private.
 run(process.execPath, [join(root, "node_modules/@oxidevm/cli/dist/bin.js"), "wasm", "build", "--project", root]);
-const allowed = new Set(["module.json", "adapter.mjs", "bridge-demo.wasm", "SHA256SUMS"]);
+const allowed = new Set(["module.json", "adapter.mjs", "bridge-demo.wasm", "LICENSE", "NOTICE", "SHA256SUMS"]);
 const release = (await readdir(join(root, "dist"))).sort();
 for (const name of release) if (!allowed.has(name)) failures.push(`dist/${name} is not part of the release`);
 const forbidden = [homedir(), root, "/home/", "implementation-path", ".oxidevm/plans", "Co-Authored-By"];

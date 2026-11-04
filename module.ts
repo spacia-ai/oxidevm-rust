@@ -4,14 +4,18 @@ import { rustCommand } from "./src/command.ts";
 export default defineModule({
   manifest: {
     id: "oxidevm-rust",
-    version: "0.1.0",
+    version: "0.1.1",
     abi: "wasi",
     // The pinned demonstration program, built from examples/bridge-demo with the pinned toolchain (scripts/build-wasm.ts).
-    artifacts: [{ name: "bridge-demo.wasm", from: "upstream/bridge-demo.wasm" }],
+    artifacts: [
+      { name: "bridge-demo.wasm", from: "upstream/bridge-demo.wasm" },
+      { name: "LICENSE", from: "LICENSE" },
+      { name: "NOTICE", from: "NOTICE" },
+    ],
     process: { kind: "command" },
     commands: ["rust-bridge-demo", "rust-wasi"],
     requires: { host: ["files.sync", "files.at", "clock", "random", "process.info", "process.sync", "net.vm"] },
-    license: { spdx: "Apache-2.0" },
+    license: { spdx: "Apache-2.0", notices: ["NOTICE", "LICENSE"] },
   },
   adapter: async host => rustCommand(host, await host.kit.wasi.compile(await host.artifacts.bytes("bridge-demo.wasm"))),
 });
