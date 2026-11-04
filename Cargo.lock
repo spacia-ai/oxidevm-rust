@@ -10,6 +10,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "fixture-bench"
+version = "0.0.0"
+
+[[package]]
 name = "fixture-binary-echo"
 version = "0.0.0"
 

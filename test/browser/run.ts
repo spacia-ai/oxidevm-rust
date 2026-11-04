@@ -16,7 +16,7 @@ import { createServer } from "node:http";
 import { homedir, tmpdir } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
 import { parseArgs, promisify } from "node:util";
-import { chromium, firefox, type Browser } from "playwright";
+import { chromium, firefox, webkit, type Browser } from "playwright";
 import { build } from "vite";
 import { decodeProjectConfig, getSDKRelease, pinnedEngineCompliance } from "@oxidevm/sdk/image-builder";
 
@@ -24,7 +24,7 @@ const execute = promisify(execFile);
 const { values: flags, positionals } = parseArgs({ options: { browser: { type: "string", default: "chromium" } }, allowPositionals: true, strict: true });
 const suite = positionals[0];
 if (suite === undefined || !/^[a-z-]+$/u.test(suite)) throw new Error("usage: node test/browser/run.ts <suite> [--browser chromium|firefox]");
-if (flags.browser !== "chromium" && flags.browser !== "firefox") throw new Error(`Unsupported browser ${flags.browser}`);
+if (flags.browser !== "chromium" && flags.browser !== "firefox" && flags.browser !== "webkit") throw new Error(`Unsupported browser ${flags.browser}`);
 const browserName = flags.browser;
 const root = resolve(import.meta.dirname, "../..");
 const imageFile = process.env["OXIDEVM_TEST_USERSPACE_IMAGE"], imageDir = process.env["OXIDEVM_TEST_USERSPACE_IMAGE_DIR"];
@@ -54,7 +54,7 @@ await cp(join(root, "test/browser/page/support.ts"), join(project, "src/support.
 await cp(join(root, "test/browser/suites", `${suite}.ts`), join(project, "src/suite.ts"));
 // The Rust fixtures, served beside the page so a suite can copy them into the VM and run them with rust-wasi.
 await mkdir(join(project, "public/fixtures"), { recursive: true });
-for (const name of ["fixture-import-probe", "fixture-binary-echo", "fixture-identity", "fixture-fsops"]) {
+for (const name of ["fixture-import-probe", "fixture-binary-echo", "fixture-identity", "fixture-fsops", "fixture-bench"]) {
   await cp(join(root, "target/wasm32-wasip1/release", `${name}.wasm`), join(project, "public/fixtures", `${name}.wasm`));
 }
 const added = await execute(process.execPath, [cli, "wasm", "add", "file:vendor/rust", "--yes", "--project", project, "--json"], { cwd: project });
@@ -74,8 +74,11 @@ const frame: unknown = JSON.parse(await readFile(join(moduleFrameDir, "frame.jso
 const frameHeaders: unknown = typeof frame === "object" && frame !== null ? Reflect.get(frame, "headers") : undefined;
 assert(typeof frameHeaders === "object" && frameHeaders !== null, "the SDK's module-frame/frame.json has no headers");
 const types: Readonly<Record<string, string>> = { ".wasm": "application/wasm", ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json", ".html": "text/html" };
+/** Requests per served path, so a suite can show how often a module artifact was fetched. */
+const served = new Map<string, number>();
 const server = createServer((request, response) => {
   const path = new URL(request.url ?? "/", "http://localhost").pathname;
+  served.set(path, (served.get(path) ?? 0) + 1);
   if (path.startsWith("/engine/module-frame/")) {
     const name = path.slice("/engine/module-frame/".length) || "index.html";
     if (!["index.html", "broker.js", "runner.js"].includes(name)) { response.writeHead(404); response.end(); return; }
@@ -111,33 +114,39 @@ function decodeResults(value: unknown): readonly Result[] {
     return { name, ok, detail };
   });
 }
-const launch = (): Promise<Browser> => browserName === "chromium" ? chromium.launch({ headless: true }) : firefox.launch({ headless: true });
+const launch = (): Promise<Browser> => (browserName === "chromium" ? chromium : browserName === "firefox" ? firefox : webkit).launch({ headless: true });
 const browser = await launch(), version = browser.version();
 process.stdout.write(`${suite}: ${browserName} ${version}\n`);
 let results: readonly Result[];
+const external: string[] = [];
 try {
   const tab = await browser.newPage();
   tab.setDefaultTimeout(900_000);
   tab.on("console", message => { if (process.env["OXIDEVM_VERBOSE"] !== undefined) process.stderr.write(`browser: ${message.text()}\n`); });
   tab.on("pageerror", error => { process.stderr.write(`page error: ${error.message}\n`); });
+  // Every request must stay on the test origin: the module, engine and image are all served locally.
+  tab.context().on("request", request => { const url = new URL(request.url()); if (!["127.0.0.1", "localhost"].includes(url.hostname) && !["blob:", "data:"].includes(url.protocol)) external.push(request.url()); });
   await tab.goto(`${origin}/page/index.html`);
-  results = decodeResults(await tab.evaluate(async (input: { origin: string; image: typeof image }) => {
-    const run: unknown = Reflect.get(window, "runSuite");
+  results = decodeResults(await tab.evaluate(async (input: { origin: string; image: typeof image; webkit: boolean }) => {
+    const run: unknown = Reflect.get(window, input.webkit ? "runRefusal" : "runSuite");
     if (typeof run !== "function") throw new Error("The page did not register runSuite");
     const outcome: unknown = await Reflect.apply(run, undefined, [input]);
     return outcome;
-  }, { origin, image }));
+  }, { origin, image, webkit: browserName === "webkit" }));
 } finally {
   await browser.close();
   server.close();
   await rm(output, { recursive: true, force: true });
 }
+results = [...results, { name: "no request leaves the test origin (OBL-OFFLINE)", ok: external.length === 0, detail: external.length === 0 ? "0 external requests" : external.slice(0, 5).join(", ") }];
+const artifacts = [...served].filter(([path]) => /bridge-demo.*\.wasm$/u.test(path));
 let failed = 0;
 for (const result of results) {
   if (!result.ok) failed += 1;
   process.stdout.write(`${result.ok ? "PASS" : "FAIL"}  ${result.name}\n      ${result.detail}\n`);
 }
 await mkdir(join(root, "test-results"), { recursive: true });
-await writeFile(join(root, `test-results/${suite}-${browserName}.json`), `${JSON.stringify({ suite, browser: browserName, version, engine: getSDKRelease().engineRelease, image: reference.manifestSHA256, results }, null, 2)}\n`);
+await writeFile(join(root, `test-results/${suite}-${browserName}.json`), `${JSON.stringify({ suite, browser: browserName, version, engine: getSDKRelease().engineRelease, image: reference.manifestSHA256, artifactFetches: Object.fromEntries(artifacts), results }, null, 2)}\n`);
+process.stdout.write(`artifact fetches: ${JSON.stringify(Object.fromEntries(artifacts))}\n`);
 process.stdout.write(`\n${String(results.length - failed)} of ${String(results.length)} passed\n`);
 process.exitCode = failed === 0 && results.length > 0 ? 0 : 1;

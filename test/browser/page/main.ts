@@ -14,4 +14,16 @@ async function runSuite(config: Config) {
     try { return await runAll(vm, scenarios); } finally { await commands.disable(); }
   } finally { await vm.dispose(); }
 }
+/** WebKit cannot isolate module workers (engine ADR 0028): turning the commands on must fail with a typed error. */
+async function runRefusal(config: Config) {
+  const vm = await openVM(config);
+  try {
+    await enableModuleCommands(vm, oxidevmRust);
+    return [{ name: "WebKit refuses the module with a typed error (OBL-REFUSAL)", ok: false, detail: "the module was enabled" }];
+  } catch (error: unknown) {
+    const code = typeof error === "object" && error !== null ? String(Reflect.get(error, "code")) : String(error);
+    return [{ name: "WebKit refuses the module with a typed error (OBL-REFUSAL)", ok: code !== "undefined" && code.length > 0, detail: `${code}: ${error instanceof Error ? error.message : ""}` }];
+  } finally { await vm.dispose(); }
+}
 Object.defineProperty(window, "runSuite", { value: runSuite, enumerable: true });
+Object.defineProperty(window, "runRefusal", { value: runRefusal, enumerable: true });
