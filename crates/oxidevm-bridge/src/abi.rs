@@ -33,6 +33,22 @@ mod imports {
             out_read: *mut u32,
         ) -> u32;
         pub(crate) fn result_close(handle: u32) -> u32;
+        pub(crate) fn net_connect(request: *const u8, len: u32, out_handle: *mut u32) -> u32;
+        pub(crate) fn net_read(
+            handle: u32,
+            buffer: *mut u8,
+            len: u32,
+            timeout_ms: u32,
+            out_read: *mut u32,
+        ) -> u32;
+        pub(crate) fn net_write(
+            handle: u32,
+            buffer: *const u8,
+            len: u32,
+            out_written: *mut u32,
+        ) -> u32;
+        pub(crate) fn net_shutdown(handle: u32, how: u32) -> u32;
+        pub(crate) fn net_close(handle: u32) -> u32;
     }
 }
 
@@ -151,6 +167,92 @@ pub(crate) fn result_close(handle: u32) -> Result<(), u32> {
     {
         // SAFETY: no pointers cross this call.
         let errno = unsafe { imports::result_close(handle) };
+        if errno == 0 { Ok(()) } else { Err(errno) }
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = handle;
+        Err(NOSYS)
+    }
+}
+
+pub(crate) fn net_connect(request: &[u8]) -> Result<u32, u32> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let length = u32::try_from(request.len()).map_err(|_| 28_u32)?;
+        let mut handle = 0_u32;
+        // SAFETY: `request` is readable for `length` bytes and `handle` is a live u32 for the call.
+        let errno = unsafe { imports::net_connect(request.as_ptr(), length, &mut handle) };
+        if errno == 0 { Ok(handle) } else { Err(errno) }
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = request;
+        Err(NOSYS)
+    }
+}
+
+pub(crate) fn net_read(handle: u32, buffer: &mut [u8], timeout_ms: u32) -> Result<usize, u32> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let capacity = u32::try_from(buffer.len()).unwrap_or(u32::MAX);
+        let mut read = 0_u32;
+        // SAFETY: `buffer` is writable for `capacity` bytes and `read` is a live u32 for the call.
+        let errno = unsafe {
+            imports::net_read(handle, buffer.as_mut_ptr(), capacity, timeout_ms, &mut read)
+        };
+        if errno == 0 {
+            usize::try_from(read).map_err(|_| 61_u32)
+        } else {
+            Err(errno)
+        }
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = (handle, buffer, timeout_ms);
+        Err(NOSYS)
+    }
+}
+
+pub(crate) fn net_write(handle: u32, buffer: &[u8]) -> Result<usize, u32> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let length = u32::try_from(buffer.len()).unwrap_or(u32::MAX);
+        let mut written = 0_u32;
+        // SAFETY: `buffer` is readable for `length` bytes and `written` is a live u32 for the call.
+        let errno = unsafe { imports::net_write(handle, buffer.as_ptr(), length, &mut written) };
+        if errno == 0 {
+            usize::try_from(written).map_err(|_| 61_u32)
+        } else {
+            Err(errno)
+        }
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = (handle, buffer);
+        Err(NOSYS)
+    }
+}
+
+pub(crate) fn net_shutdown(handle: u32, how: u32) -> Result<(), u32> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        // SAFETY: no pointers cross this call.
+        let errno = unsafe { imports::net_shutdown(handle, how) };
+        if errno == 0 { Ok(()) } else { Err(errno) }
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = (handle, how);
+        Err(NOSYS)
+    }
+}
+
+pub(crate) fn net_close(handle: u32) -> Result<(), u32> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        // SAFETY: no pointers cross this call.
+        let errno = unsafe { imports::net_close(handle) };
         if errno == 0 { Ok(()) } else { Err(errno) }
     }
     #[cfg(not(target_arch = "wasm32"))]

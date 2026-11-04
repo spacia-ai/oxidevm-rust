@@ -1,11 +1,13 @@
 import type { BaseHost, CommandHooks, Host, Stdio } from "@oxidevm/sdk/wasm";
 import { bridgeCommand, COMMAND_FUNCTIONS } from "./bridge/command.ts";
+import { Handles } from "./bridge/handles.ts";
+import { bridgeNet, NET_FUNCTIONS, type Connection } from "./bridge/net.ts";
 import { bridgeProcess, PROCESS_FUNCTIONS, type Identity } from "./bridge/process.ts";
 import { mapGuestExit } from "./exit.ts";
 import { GuestMemory } from "./memory.ts";
 import { admitProgram, AdmissionError } from "./wasi/admission.ts";
 import { BRIDGE_NAMESPACE, PREVIEW1_NAMESPACE } from "./wasi/imports.ts";
-import type { ProcessSyncHost, WasiHost } from "./host.ts";
+import type { NativeRunResult, NetSyncHost, ProcessSyncHost, WasiHost } from "./host.ts";
 import { encodeLaunch, LaunchError, preview1, ProcExit, type Preopen } from "./wasi/preview1.ts";
 
 /** The host members a Rust command uses: its standard streams, the kit, failure reporting and Linux files. */
@@ -13,13 +15,15 @@ export type RustCommandHost = Pick<BaseHost, "fail"> & WasiHost & {
   readonly process: Pick<Host<"process.info">["process"], "info">;
   /** Synchronous native runs (SDK capability "process.sync"); without it command_run answers NOSYS. */
   readonly processSync: ProcessSyncHost | undefined;
+  /** VM sockets under the module's reach (net.vm); without it net_connect answers NOSYS. */
+  readonly netSync: NetSyncHost | undefined;
 };
 
 /** The commands this module declares (module.ts `commands`). */
 export type RustCommandName = "rust-bridge-demo";
 
-/** The bridge functions this release serves (oxidevm_bridge_v1); sockets follow. */
-const BRIDGE_FUNCTIONS: ReadonlySet<string> = new Set([...PROCESS_FUNCTIONS, ...COMMAND_FUNCTIONS]);
+/** The bridge functions this release serves (oxidevm_bridge_v1). */
+const BRIDGE_FUNCTIONS: ReadonlySet<string> = new Set([...PROCESS_FUNCTIONS, ...COMMAND_FUNCTIONS, ...NET_FUNCTIONS]);
 
 /**
  * Runs one compiled wasm32-wasip1 Rust command per invocation: the program is admitted once, and every run gets a fresh
@@ -42,9 +46,14 @@ export function rustCommand(host: RustCommandHost, program: WebAssembly.Module, 
       const bound: { memory?: GuestMemory } = {};
       const memory = (): GuestMemory => { if (bound.memory === undefined) throw new AdmissionError("memory is not bound yet"); return bound.memory; };
       const wasi = preview1(host, memory, stdio, launch, io.terminals, preopens);
+      // Retained results and open connections share the run's handle budget with its descriptors.
+      const handles: { results?: Handles<NativeRunResult>; connections?: Handles<Connection> } = {};
+      const results = new Handles<NativeRunResult>(wasi.table, () => handles.connections?.size ?? 0);
+      const connections = new Handles<Connection>(wasi.table, () => handles.results?.size ?? 0);
+      handles.results = results; handles.connections = connections;
       const instance = new WebAssembly.Instance(program, {
         [PREVIEW1_NAMESPACE]: wasi.imports,
-        [BRIDGE_NAMESPACE]: { ...bridgeProcess(memory, identity), ...bridgeCommand(wasi.context, host.processSync, memory) },
+        [BRIDGE_NAMESPACE]: { ...bridgeProcess(memory, identity), ...bridgeCommand(wasi.context, host.processSync, memory, results), ...bridgeNet(wasi.context, host.netSync, memory, connections) },
       });
       const exported = instance.exports["memory"], start = instance.exports["_start"];
       if (!(exported instanceof WebAssembly.Memory) || typeof start !== "function") throw new AdmissionError("the program lost its memory or _start export");
@@ -57,6 +66,7 @@ export function rustCommand(host: RustCommandHost, program: WebAssembly.Module, 
         const mapped = mapGuestExit(error.code, argv0);
         return mapped.diagnostic === undefined ? mapped.status : host.fail(mapped.status, mapped.diagnostic);
       } finally {
+        for (const connection of connections.values()) { try { connection.socket.close(); } catch { /* the peer or the VM already closed it */ } }
         wasi.table.closeAll();
       }
     },

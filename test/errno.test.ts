@@ -12,3 +12,10 @@ describe("Linux to WASI errno (OBL-ERRNO, table level)", () => {
     expect(wasiErrno(0)).toBe(WASI.io);
   });
 });
+
+describe("socket errors keep their meaning", () => {
+  it("maps refused, reset, aborted, unreachable and not-connected exactly", () => {
+    expect([111, 104, 103, 113, 101, 107, 98].map(wasiErrno)).toEqual([WASI.connrefused, WASI.connreset, WASI.connaborted, WASI.hostunreach, WASI.netunreach, WASI.notconn, WASI.addrinuse]);
+    expect(WASI).toMatchObject({ connrefused: 14, connreset: 15, hostunreach: 23, netunreach: 40, notcapable: 76 });
+  });
+});

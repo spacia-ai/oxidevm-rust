@@ -15,5 +15,5 @@ export default defineModule({
   },
   // `files.at`, `clock`, `random` and `process.sync` arrive with the next SDK release; until then those operations
   // answer NOSYS.
-  adapter: async host => rustCommand({ ...host, at: undefined, clock: undefined, random: undefined, processSync: undefined }, await host.artifacts.compile("bridge-demo.wasm"), "rust-bridge-demo"),
+  adapter: async host => rustCommand({ ...host, at: undefined, clock: undefined, random: undefined, processSync: undefined, netSync: undefined }, await host.artifacts.compile("bridge-demo.wasm"), "rust-bridge-demo"),
 });

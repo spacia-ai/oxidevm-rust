@@ -6,7 +6,7 @@ import type { FileDescriptor, LinuxFileStat, LinuxProcessInfo } from "@oxidevm/s
 type ProcessId = LinuxProcessInfo["pid"];
 import type { RustCommandHost } from "../../src/command.ts";
 import type { FakeFiles } from "./files.ts";
-import type { ClockHost, ProcessSyncHost, RandomHost } from "../../src/host.ts";
+import type { ClockHost, NetSyncHost, ProcessSyncHost, RandomHost } from "../../src/host.ts";
 
 export class FakeLinuxError extends Error {
   constructor(readonly errno: number) { super(`errno ${String(errno)}`); }
@@ -24,6 +24,7 @@ export interface StreamsOptions {
   readonly files?: FakeFiles;
   readonly clock?: ClockHost;
   readonly processSync?: ProcessSyncHost;
+  readonly netSync?: NetSyncHost;
   readonly random?: RandomHost;
   /** The mode fstat reports for every stream (default a FIFO). */
   readonly mode?: number;
@@ -70,6 +71,7 @@ export function streams(options: StreamsOptions = {}): Streams {
     },
     at: options.files?.at,
     processSync: options.processSync,
+    netSync: options.netSync,
     clock: options.clock,
     random: options.random,
     process: { info: () => Promise.resolve({ pid: descriptorPid(42), parentPid: descriptorPid(7), uid: 1000, gid: 1000, cwd: "/workspace", args: [], environment: [], terminal: null }) },

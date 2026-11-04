@@ -37,6 +37,21 @@ export type NativeExit = { readonly kind: "exited"; readonly code: number } | { 
 export interface NativeRunResult { readonly pid: number; readonly exit: NativeExit; readonly stdout: Uint8Array; readonly stderr: Uint8Array }
 export interface ProcessSyncHost { runSync(spec: NativeRunSpec): NativeRunResult }
 
+/** A synchronous VM socket connection (the SDK's NetSyncConnection). */
+export interface SyncConnection {
+  read(max: number, options?: { readonly timeoutMs?: number }): Uint8Array;
+  write(bytes: Uint8Array): void;
+  closeWrite(): void;
+  close(): void;
+}
+/** VM sockets under the module's declared reach (SDK capabilities net.vm / net.internet). */
+export interface NetSyncHost {
+  connectSync(options: { readonly host: string; readonly port: number; readonly tls?: boolean; readonly alpn?: readonly string[] }): SyncConnection;
+  connectUnixSync(path: string): SyncConnection;
+  /** The Linux errno a network failure carries (kit.net.errno). */
+  errno(error: unknown): number;
+}
+
 /** The VM's clocks (SDK capability "clock"): nanoseconds by the VM's own time, not the browser's. */
 export interface ClockHost { now(clock: "realtime" | "monotonic"): bigint; resolution(clock: "realtime" | "monotonic"): bigint }
 /** The VM's entropy (SDK capability "random"). */

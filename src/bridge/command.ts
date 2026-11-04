@@ -2,6 +2,7 @@ import { WASI, type WasiErrno } from "../errno.ts";
 import type { NativeRunResult, ProcessSyncHost } from "../host.ts";
 import type { GuestMemory } from "../memory.ts";
 import { WasiError, type WasiContext } from "../wasi/context.ts";
+import type { Handles } from "./handles.ts";
 
 type ImportFunction = (...args: never[]) => number;
 export const COMMAND_FUNCTIONS = ["command_run", "result_status", "result_read", "result_close"] as const;
@@ -41,10 +42,9 @@ export function decodeRequest(bytes: Uint8Array): Parameters<ProcessSyncHost["ru
  * program closes it, within the run's descriptor count and an 8 MiB budget, so the host never re-runs a command to
  * learn its size and a program cannot grow host memory without bound.
  */
-export function bridgeCommand(context: WasiContext, process: ProcessSyncHost | undefined, memory: () => GuestMemory): Readonly<Record<(typeof COMMAND_FUNCTIONS)[number], ImportFunction>> {
-  const results = new Map<number, NativeRunResult>();
-  let nextHandle = 1, retained = 0;
-  const get = (handle: number): NativeRunResult => { const result = results.get(handle); if (result === undefined) throw new WasiError(WASI.badf); return result; };
+export function bridgeCommand(context: WasiContext, process: ProcessSyncHost | undefined, memory: () => GuestMemory, results: Handles<NativeRunResult>): Readonly<Record<(typeof COMMAND_FUNCTIONS)[number], ImportFunction>> {
+  let retained = 0;
+  const get = (handle: number): NativeRunResult => results.get(handle);
   const native = (body: () => void): WasiErrno => context.guarded(() => {
     try { body(); }
     catch (error) {
@@ -61,12 +61,10 @@ export function bridgeCommand(context: WasiContext, process: ProcessSyncHost | u
       if (length > NATIVE.maxRequest) throw new WasiError(WASI.inval);
       guest.check(outHandle, 4); guest.check(outSizes, 8);
       const spec = decodeRequest(guest.read(pointer, length));
-      if (results.size + context.table.size >= 256) throw new WasiError(WASI.mfile);
       if (retained + spec.stdoutLimit + spec.stderrLimit > NATIVE.retainedBytes) throw new WasiError(WASI.nomem);
       const result = process.runSync(spec);
       if (result.stdout.byteLength > spec.stdoutLimit || result.stderr.byteLength > spec.stderrLimit) throw new RangeError("the host returned more output than the limit");
-      const handle = nextHandle++;
-      results.set(handle, result);
+      const handle = results.add(result);
       retained += result.stdout.byteLength + result.stderr.byteLength;
       memory().setU32(outHandle, handle);
       memory().setU32(outSizes, result.stdout.byteLength); memory().setU32(outSizes + 4, result.stderr.byteLength);
@@ -86,8 +84,7 @@ export function bridgeCommand(context: WasiContext, process: ProcessSyncHost | u
       guest.write(buffer, chunk); guest.setU32(out, chunk.byteLength);
     }),
     result_close: (handle: number) => context.guarded(() => {
-      const result = get(handle);
-      results.delete(handle);
+      const result = results.remove(handle);
       retained -= result.stdout.byteLength + result.stderr.byteLength;
     }),
   };

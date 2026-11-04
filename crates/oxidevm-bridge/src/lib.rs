@@ -5,6 +5,7 @@
 //! restores the caller's working directory before `main`, which plain WASI programs do not get.
 mod abi;
 mod command;
+pub mod net;
 pub mod process;
 
 use std::fmt;
