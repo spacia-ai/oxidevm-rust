@@ -7,6 +7,9 @@
 //!                                              its output and exits with its status (100 + signal when killed)
 //!   rust-bridge-demo connect tcp <host> <port> | tls <host> <port> | unix <path>
 //!                                              sends standard input, half-closes, prints every reply byte
+//!   rust-bridge-demo summarize <orders.csv> <summary.csv>
+//!                                              totals per country (order_id,country,total), written atomically, then
+//!                                              compressed by native gzip and verified by decompressing it natively
 use std::io::{self, IsTerminal, Write};
 use std::process::ExitCode;
 
@@ -174,6 +177,90 @@ fn connect(args: &[String]) -> ExitCode {
     }
 }
 
+fn summarize(args: &[String]) -> ExitCode {
+    let (Some(input), Some(output)) = (args.first(), args.get(1)) else {
+        eprintln!("usage: rust-bridge-demo summarize <orders.csv> <summary.csv>");
+        return ExitCode::from(2);
+    };
+    match summarize_files(input, output) {
+        Ok(line) => {
+            println!("{line}");
+            ExitCode::SUCCESS
+        }
+        Err(message) => {
+            eprintln!("rust-bridge-demo: {message}");
+            ExitCode::from(1)
+        }
+    }
+}
+
+fn summarize_files(input: &str, output: &str) -> Result<String, String> {
+    use oxidevm_bridge::process::{Command, ExitStatus};
+    let text =
+        std::fs::read_to_string(input).map_err(|error| format!("cannot read {input}: {error}"))?;
+    let mut lines = text.lines();
+    if lines.next().map(str::trim) != Some("order_id,country,total") {
+        return Err(format!(
+            "{input} does not start with order_id,country,total"
+        ));
+    }
+    let mut totals: std::collections::BTreeMap<String, (u64, u64)> =
+        std::collections::BTreeMap::new();
+    for (number, line) in lines
+        .enumerate()
+        .filter(|(_, line)| !line.trim().is_empty())
+    {
+        let fields: Vec<&str> = line.split(',').collect();
+        let (Some(country), Some(total)) = (fields.get(1), fields.get(2)) else {
+            return Err(format!("line {} has fewer than three fields", number + 2));
+        };
+        let total: u64 = total
+            .trim()
+            .parse()
+            .map_err(|_| format!("line {} has a total that is not a whole number", number + 2))?;
+        let entry = totals.entry(country.trim().to_string()).or_insert((0, 0));
+        entry.0 += 1;
+        entry.1 += total;
+    }
+    let mut summary = String::from("country,orders,total\n");
+    for (country, (orders, total)) in &totals {
+        summary.push_str(&format!("{country},{orders},{total}\n"));
+    }
+    // Atomic: a reader never sees half a file.
+    let temporary = format!("{output}.tmp");
+    std::fs::write(&temporary, &summary)
+        .and_then(|()| std::fs::rename(&temporary, output))
+        .map_err(|error| format!("cannot write {output}: {error}"))?;
+    let mut gzip = Command::new("/bin/gzip");
+    gzip.args(["-n", "-c"]).input(summary.as_bytes());
+    let compressed = gzip.output().map_err(|error| format!("gzip: {error}"))?;
+    if compressed.status != ExitStatus::Exited(0) {
+        return Err(format!("gzip ended with {:?}", compressed.status));
+    }
+    let gz = format!("{output}.gz");
+    std::fs::write(&gz, &compressed.stdout)
+        .map_err(|error| format!("cannot write {gz}: {error}"))?;
+    let mut gunzip = Command::new("/bin/gzip");
+    gunzip.args(["-d", "-c"]).input(compressed.stdout.clone());
+    let restored = gunzip
+        .output()
+        .map_err(|error| format!("gzip -d: {error}"))?;
+    if restored.stdout != summary.as_bytes() {
+        return Err("the native round trip changed the summary".into());
+    }
+    let pid = oxidevm_bridge::process::info()
+        .map(|info| info.pid)
+        .map_err(|error| error.to_string())?;
+    Ok(format!(
+        "summary: {} countries, {} bytes; rust pid {pid}; gzip pid {} wrote {} bytes; gzip -d pid {} round trip ok",
+        totals.len(),
+        summary.len(),
+        compressed.pid,
+        compressed.stdout.len(),
+        restored.pid
+    ))
+}
+
 trait ReadWrite: io::Read + io::Write {}
 impl<T: io::Read + io::Write> ReadWrite for T {}
 
@@ -200,6 +287,7 @@ fn main() -> ExitCode {
         Some("echo") => echo(),
         Some("run") => run(args.get(2..).unwrap_or_default()),
         Some("connect") => connect(args.get(2..).unwrap_or_default()),
+        Some("summarize") => summarize(args.get(2..).unwrap_or_default()),
         _ => hello(&args),
     }
 }

@@ -3,7 +3,7 @@
 //! to the caller's directory before `main`, so relative paths resolve as they would natively.
 //!
 //!   fsops cat <path> | write <path> <text> | append <path> <text> | ls <dir> | mkdir <dir> | rm <path> | rmdir <dir>
-//!   fsops mv <from> <to> | stat <path> | sleep <ms> | cwd
+//!   fsops mv <from> <to> | stat <path> | sleep <ms> | sync-write <path> <text> | cwd
 use std::io::{Read, Write};
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
@@ -60,6 +60,17 @@ fn run(args: &[String]) -> std::io::Result<String> {
                 "slept {}ms",
                 start.elapsed().as_millis() / 100 * 100
             ))
+        }
+        "sync-write" => {
+            // Durable replace: write a temporary file, sync it, rename it into place, then sync the directory.
+            let (path, text) = (std::path::Path::new(arg(1)?), arg(2)?);
+            let temporary = path.with_extension("tmp");
+            let mut file = std::fs::File::create(&temporary)?;
+            file.write_all(text.as_bytes())?;
+            file.sync_all()?;
+            std::fs::rename(&temporary, path)?;
+            std::fs::File::open(path.parent().unwrap_or(std::path::Path::new(".")))?.sync_all()?;
+            Ok("synced".into())
         }
         "cwd" => std::env::current_dir().map(|dir| dir.display().to_string()),
         _ => Err(std::io::Error::new(

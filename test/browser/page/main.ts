@@ -5,6 +5,8 @@ import { openVM, runAll, type Config } from "./support";
 import { scenarios } from "./suite";
 
 async function runSuite(config: Config) {
+  // Suites that open further VMs (durability across a restart) read the served engine and image from here.
+  Object.defineProperty(window, "suiteConfig", { value: config, configurable: true });
   const vm = await openVM(config);
   try {
     await vm.exec({ command: "/bin/mkdir", args: ["-p", "/workspace/t"], stdin: new Uint8Array() });

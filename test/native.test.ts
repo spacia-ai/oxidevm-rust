@@ -79,3 +79,22 @@ describe("command request decoding (OBL-NATIVE-VALIDATE)", () => {
     expect(refused(valid.slice(0, -1))).toBe(true);
   });
 });
+
+describe("rust-bridge-demo summarize (the SL-09 example program)", () => {
+  it("totals per country, writes the summary atomically, compresses it natively and verifies the round trip", async () => {
+    const { FakeFiles } = await import("./support/files.ts");
+    const files = new FakeFiles({ "/workspace/data.csv": "order_id,country,total\n1,Netherlands,149\n2,Germany,119\n3,France,99\n4,Netherlands,150\n5,United Kingdom,129\n6,Germany,120\n7,France,90\n8,Netherlands,150\n" }, ["/workspace"]);
+    const calls: string[][] = [];
+    // A reversible stand-in for gzip: -c reverses the bytes, -d -c reverses them back.
+    const gzip: ProcessSyncHost = { runSync: spec => { calls.push([spec.command, ...spec.args]); return { pid: 40 + calls.length, exit: { kind: "exited", code: 0 }, stdout: spec.input.slice().reverse(), stderr: new Uint8Array() }; } };
+    const fake = streams({ files, processSync: gzip });
+    const status = await rustCommand(fake.host, demo, "rust-bridge-demo").main(io(["summarize", "data.csv", "summary.csv"]));
+    expect(status).toBe(0);
+    const summary = "country,orders,total\nFrance,2,189\nGermany,2,239\nNetherlands,3,449\nUnited Kingdom,1,129\n";
+    expect(new TextDecoder().decode(files.tree.get("/workspace/summary.csv")?.data)).toBe(summary);
+    expect(files.tree.has("/workspace/summary.csv.tmp")).toBe(false);
+    expect(files.tree.get("/workspace/summary.csv.gz")?.data).toEqual(new TextEncoder().encode(summary).reverse());
+    expect(calls).toEqual([["/bin/gzip", "-n", "-c"], ["/bin/gzip", "-d", "-c"]]);
+    expect(new TextDecoder().decode(fake.stdout())).toBe(`summary: 4 countries, ${String(summary.length)} bytes; rust pid 42; gzip pid 41 wrote ${String(summary.length)} bytes; gzip -d pid 42 round trip ok\n`);
+  });
+});
