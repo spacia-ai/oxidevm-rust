@@ -1,0 +1,382 @@
+{
+  "source": "https://github.com/WebAssembly/WASI/blob/wasi-0.1/preview1/witx/wasi_snapshot_preview1.witx",
+  "baseline": {
+    "sdk": "0.0.12 public API (oxidevm-sdk 97240165)"
+  },
+  "dispositions": {
+    "supported": "implemented over an existing public host operation",
+    "host-extension": "needs a new public SDK/engine operation (slice noted)",
+    "adapter-only": "owned by the adapter's guest descriptor table; no host call",
+    "refused": "returns an explicit WASI error; never false success"
+  },
+  "imports": [
+    {
+      "name": "args_get",
+      "group": "launch",
+      "disposition": "supported",
+      "slice": "SL-02",
+      "host": "CommandIO.args + invocation.argv0",
+      "note": "argv0 from the command invocation; strings are UTF-8 (SDK values), so non-UTF-8 execve bytes are unavailable"
+    },
+    {
+      "name": "args_sizes_get",
+      "group": "launch",
+      "disposition": "supported",
+      "slice": "SL-02",
+      "host": "CommandIO.args",
+      "note": ""
+    },
+    {
+      "name": "environ_get",
+      "group": "launch",
+      "disposition": "supported",
+      "slice": "SL-02",
+      "host": "CommandIO.env",
+      "note": ""
+    },
+    {
+      "name": "environ_sizes_get",
+      "group": "launch",
+      "disposition": "supported",
+      "slice": "SL-02",
+      "host": "CommandIO.env",
+      "note": ""
+    },
+    {
+      "name": "fd_read",
+      "group": "streams",
+      "disposition": "supported",
+      "slice": "SL-02",
+      "host": "files.sync read",
+      "note": "bounded 64 KiB chunks, <=128 iovecs, <=1 MiB per call"
+    },
+    {
+      "name": "fd_write",
+      "group": "streams",
+      "disposition": "supported",
+      "slice": "SL-02",
+      "host": "files.sync write",
+      "note": "partial counts returned as WASI requires; SIGPIPE follows the inherited disposition"
+    },
+    {
+      "name": "fd_pread",
+      "group": "streams",
+      "disposition": "host-extension",
+      "slice": "SL-03",
+      "host": "new positional read",
+      "note": "no seek-then-restore emulation: a shared description's offset must not move"
+    },
+    {
+      "name": "fd_pwrite",
+      "group": "streams",
+      "disposition": "host-extension",
+      "slice": "SL-03",
+      "host": "new positional write",
+      "note": "as fd_pread"
+    },
+    {
+      "name": "fd_seek",
+      "group": "streams",
+      "disposition": "supported",
+      "slice": "SL-04",
+      "host": "files.sync seek",
+      "note": ""
+    },
+    {
+      "name": "fd_tell",
+      "group": "streams",
+      "disposition": "supported",
+      "slice": "SL-04",
+      "host": "files.sync seek(0, current)",
+      "note": ""
+    },
+    {
+      "name": "fd_close",
+      "group": "streams",
+      "disposition": "supported",
+      "slice": "SL-04",
+      "host": "files.sync close",
+      "note": "each owned descriptor closes once; preopens and stdio follow WASI"
+    },
+    {
+      "name": "fd_renumber",
+      "group": "streams",
+      "disposition": "supported",
+      "slice": "SL-04",
+      "host": "files.sync dup(fd, target) + close",
+      "note": "the guest table moves; native-child stdio must follow the renumbered slot (OBL-NATIVE-CONTEXT)"
+    },
+    {
+      "name": "fd_fdstat_get",
+      "group": "metadata",
+      "disposition": "host-extension",
+      "slice": "SL-03",
+      "host": "fstat + new status-flags read",
+      "note": "file type from fstat works today; APPEND/NONBLOCK/SYNC flags need a public status-flags read"
+    },
+    {
+      "name": "fd_fdstat_set_flags",
+      "group": "metadata",
+      "disposition": "host-extension",
+      "slice": "SL-03",
+      "host": "new status-flags write",
+      "note": ""
+    },
+    {
+      "name": "fd_fdstat_set_rights",
+      "group": "metadata",
+      "disposition": "adapter-only",
+      "slice": "SL-04",
+      "host": "guest descriptor table",
+      "note": "rights only decrease; enforced before any host call"
+    },
+    {
+      "name": "fd_filestat_get",
+      "group": "metadata",
+      "disposition": "supported",
+      "slice": "SL-04",
+      "host": "files.sync fstat",
+      "note": "nanosecond times are bigint already"
+    },
+    {
+      "name": "fd_filestat_set_size",
+      "group": "metadata",
+      "disposition": "supported",
+      "slice": "SL-04",
+      "host": "files.sync ftruncate",
+      "note": ""
+    },
+    {
+      "name": "fd_filestat_set_times",
+      "group": "metadata",
+      "disposition": "host-extension",
+      "slice": "SL-03",
+      "host": "new futimens with nanoseconds",
+      "note": "utimes takes a path and a millisecond Date"
+    },
+    {
+      "name": "fd_prestat_get",
+      "group": "preopens",
+      "disposition": "adapter-only",
+      "slice": "SL-02",
+      "host": "guest descriptor table",
+      "note": "preopens come from the launch context; cwd only when granted (OBL-CONTEXT)"
+    },
+    {
+      "name": "fd_prestat_dir_name",
+      "group": "preopens",
+      "disposition": "adapter-only",
+      "slice": "SL-02",
+      "host": "guest descriptor table",
+      "note": ""
+    },
+    {
+      "name": "fd_readdir",
+      "group": "preopens",
+      "disposition": "host-extension",
+      "slice": "SL-03",
+      "host": "new descriptor readdir with resume cookies",
+      "note": "readdir(path) is path-based and returns everything at once"
+    },
+    {
+      "name": "path_open",
+      "group": "paths",
+      "disposition": "host-extension",
+      "slice": "SL-03",
+      "host": "new descriptor-relative operation through the engine's openat2 / path walker",
+      "note": "confinement belongs to Rust; never realpath-then-open in TypeScript"
+    },
+    {
+      "name": "path_create_directory",
+      "group": "paths",
+      "disposition": "host-extension",
+      "slice": "SL-03",
+      "host": "new descriptor-relative operation through the engine's openat2 / path walker",
+      "note": "confinement belongs to Rust; never realpath-then-open in TypeScript"
+    },
+    {
+      "name": "path_filestat_get",
+      "group": "paths",
+      "disposition": "host-extension",
+      "slice": "SL-03",
+      "host": "new descriptor-relative operation through the engine's openat2 / path walker",
+      "note": "confinement belongs to Rust; never realpath-then-open in TypeScript"
+    },
+    {
+      "name": "path_filestat_set_times",
+      "group": "paths",
+      "disposition": "host-extension",
+      "slice": "SL-03",
+      "host": "new descriptor-relative operation through the engine's openat2 / path walker",
+      "note": "confinement belongs to Rust; never realpath-then-open in TypeScript"
+    },
+    {
+      "name": "path_link",
+      "group": "paths",
+      "disposition": "host-extension",
+      "slice": "SL-03",
+      "host": "new descriptor-relative operation through the engine's openat2 / path walker",
+      "note": "confinement belongs to Rust; never realpath-then-open in TypeScript"
+    },
+    {
+      "name": "path_remove_directory",
+      "group": "paths",
+      "disposition": "host-extension",
+      "slice": "SL-03",
+      "host": "new descriptor-relative operation through the engine's openat2 / path walker",
+      "note": "confinement belongs to Rust; never realpath-then-open in TypeScript"
+    },
+    {
+      "name": "path_rename",
+      "group": "paths",
+      "disposition": "host-extension",
+      "slice": "SL-03",
+      "host": "new descriptor-relative operation through the engine's openat2 / path walker",
+      "note": "confinement belongs to Rust; never realpath-then-open in TypeScript"
+    },
+    {
+      "name": "path_symlink",
+      "group": "paths",
+      "disposition": "host-extension",
+      "slice": "SL-03",
+      "host": "new descriptor-relative operation through the engine's openat2 / path walker",
+      "note": "confinement belongs to Rust; never realpath-then-open in TypeScript"
+    },
+    {
+      "name": "path_unlink_file",
+      "group": "paths",
+      "disposition": "host-extension",
+      "slice": "SL-03",
+      "host": "new descriptor-relative operation through the engine's openat2 / path walker",
+      "note": "confinement belongs to Rust; never realpath-then-open in TypeScript"
+    },
+    {
+      "name": "path_readlink",
+      "group": "paths",
+      "disposition": "host-extension",
+      "slice": "SL-03",
+      "host": "new descriptor-relative readlink returning bytes",
+      "note": "readlink returns decoded UTF-8 text today; link targets are bytes"
+    },
+    {
+      "name": "fd_sync",
+      "group": "storage",
+      "disposition": "supported",
+      "slice": "SL-04",
+      "host": "files.sync fsync",
+      "note": "fails when the storage barrier fails"
+    },
+    {
+      "name": "fd_datasync",
+      "group": "storage",
+      "disposition": "host-extension",
+      "slice": "SL-03",
+      "host": "public fdatasync (engine op 75 exists)",
+      "note": ""
+    },
+    {
+      "name": "fd_advise",
+      "group": "hints",
+      "disposition": "refused",
+      "slice": "SL-04",
+      "host": "none",
+      "note": "returns NOTSUP until a real advice operation exists; never false success"
+    },
+    {
+      "name": "fd_allocate",
+      "group": "hints",
+      "disposition": "refused",
+      "slice": "SL-04",
+      "host": "none",
+      "note": "returns NOTSUP until a real fallocate exists"
+    },
+    {
+      "name": "clock_res_get",
+      "group": "time",
+      "disposition": "host-extension",
+      "slice": "SL-05",
+      "host": "VM clock authority",
+      "note": "browser Date/performance time is not the VM clock (virtual guest time, engine ADR 0013)"
+    },
+    {
+      "name": "clock_time_get",
+      "group": "time",
+      "disposition": "host-extension",
+      "slice": "SL-05",
+      "host": "VM clock authority",
+      "note": "REALTIME and MONOTONIC; CPU-time clocks return INVAL"
+    },
+    {
+      "name": "poll_oneoff",
+      "group": "time",
+      "disposition": "host-extension",
+      "slice": "SL-05",
+      "host": "timed readiness (engine pollPipes exists internally)",
+      "note": "1..16 subscriptions, no busy wait"
+    },
+    {
+      "name": "proc_exit",
+      "group": "exec",
+      "disposition": "supported",
+      "slice": "SL-02",
+      "host": "main return value",
+      "note": "0..119 exact; larger codes exit 1 and report the original"
+    },
+    {
+      "name": "proc_raise",
+      "group": "exec",
+      "disposition": "host-extension",
+      "slice": "SL-06",
+      "host": "synchronous raise (process.signals.raise is a promise)",
+      "note": "without process.signals: NOTSUP"
+    },
+    {
+      "name": "sched_yield",
+      "group": "exec",
+      "disposition": "supported",
+      "slice": "SL-05",
+      "host": "none",
+      "note": "single-threaded guest: returns SUCCESS immediately (documented)"
+    },
+    {
+      "name": "random_get",
+      "group": "entropy",
+      "disposition": "host-extension",
+      "slice": "SL-05",
+      "host": "VM entropy authority",
+      "note": "bounded chunks; deterministic injection for tests"
+    },
+    {
+      "name": "sock_accept",
+      "group": "sockets",
+      "disposition": "refused",
+      "slice": "SL-02",
+      "host": "none",
+      "note": "no socket preopens in the first release: BADF on every descriptor; the bridge's net API supplies client sockets"
+    },
+    {
+      "name": "sock_recv",
+      "group": "sockets",
+      "disposition": "refused",
+      "slice": "SL-02",
+      "host": "none",
+      "note": "no socket preopens in the first release: BADF on every descriptor; the bridge's net API supplies client sockets"
+    },
+    {
+      "name": "sock_send",
+      "group": "sockets",
+      "disposition": "refused",
+      "slice": "SL-02",
+      "host": "none",
+      "note": "no socket preopens in the first release: BADF on every descriptor; the bridge's net API supplies client sockets"
+    },
+    {
+      "name": "sock_shutdown",
+      "group": "sockets",
+      "disposition": "refused",
+      "slice": "SL-02",
+      "host": "none",
+      "note": "no socket preopens in the first release: BADF on every descriptor; the bridge's net API supplies client sockets"
+    }
+  ]
+}
