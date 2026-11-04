@@ -50,3 +50,19 @@ describe.skipIf(probe === undefined)("Rust std::fs through the adapter (SL-04, u
     expect(new TextDecoder().decode(fake.stdout())).toBe("fs_read_link: ok probe.txt\n");
   });
 });
+
+describe.skipIf(probe === undefined)("Rust std time and randomness through the adapter (SL-05, unit level)", () => {
+  it("reads the VM clock, sleeps through one engine wait and seeds HashMap from VM entropy", async () => {
+    if (probe === undefined) return;
+    let now = 1_700_000_000_000_000_000n;
+    const waits: number[] = [];
+    const files = new FakeFiles({}, ["/workspace"]);
+    const at = { ...files.at, poll: (_entries: unknown, timeout: number) => { waits.push(timeout); now += BigInt(timeout) * 1_000_000n; return []; } };
+    const base = streams({ files, clock: { now: () => now, resolution: () => 1n }, random: { fill: bytes => { bytes.fill(1); } } });
+    let next = 200;
+    const host = { ...base.host, at, fs: { ...base.host.fs, pipe: () => [descriptor(next++), descriptor(next++)] as const, close: (fd: Parameters<typeof base.host.fs.close>[0]) => { if (fd < 200) base.host.fs.close(fd); } } };
+    expect(await rustCommand(host, probe, "rust-bridge-demo").main(io(["time_system", "time_sleep", "random_hashmap"], {}))).toBe(0);
+    expect(new TextDecoder().decode(base.stdout()).trim().split("\n")).toEqual(["time_system: ok 1700000000s", "time_sleep: ok 50ms", "random_hashmap: ok 1 entries"]);
+    expect(waits).toEqual([50]);
+  });
+});

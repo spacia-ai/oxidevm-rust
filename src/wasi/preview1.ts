@@ -13,6 +13,7 @@ import { pathFunctions } from "./paths.ts";
 import { ALL_RIGHTS, MUTATING_RIGHTS, RIGHT } from "./rights.ts";
 import { filetypeOf, streamRights } from "./stat.ts";
 import { streams } from "./streams.ts";
+import { timeFunctions } from "./time.ts";
 
 export { encodeLaunch, LaunchError, ProcExit, type Launch } from "./launch.ts";
 
@@ -67,7 +68,7 @@ export function preview1(host: WasiHost, memory: () => GuestMemory, stdio: Stdio
   }
   const served: Readonly<Record<string, ImportFunction>> = {
     ...launchFunctions(memory, launch, body => context.guarded(body)),
-    ...streams(context), ...descriptorFunctions(context), ...pathFunctions(context), ...directoryFunctions(context),
+    ...streams(context), ...descriptorFunctions(context), ...pathFunctions(context), ...directoryFunctions(context), ...timeFunctions(context),
   };
   return { imports: Object.fromEntries(PREVIEW1_IMPORTS.map(name => [name, served[name] ?? (() => PENDING[name] ?? WASI.nosys)])), table };
 }

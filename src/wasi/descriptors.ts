@@ -20,6 +20,8 @@ export type Entry =
  */
 export class DescriptorTable {
   readonly #entries = new Map<number, Entry>();
+  /** Linux descriptors the adapter holds for itself (never guest-visible), closed when the run ends. */
+  readonly #private = new Set<FileDescriptor>();
   readonly #limit: number;
   readonly #close: (fd: FileDescriptor) => void;
 
@@ -76,9 +78,13 @@ export class DescriptorTable {
     if (replaced.owned) this.#close(replaced.host);
   }
 
-  /** Closes every owned descriptor that is still open (the run ended). */
+  /** Holds a Linux descriptor the adapter uses itself; the guest has no number for it. */
+  adopt(fd: FileDescriptor): void { this.#private.add(fd); }
+
+  /** Closes every owned and private descriptor that is still open (the run ended). */
   closeAll(): void {
-    for (const entry of this.#entries.values()) if (entry.owned) { try { this.#close(entry.host); } catch { /* already gone with the process */ } }
-    this.#entries.clear();
+    const open = [...[...this.#entries.values()].flatMap(entry => entry.owned ? [entry.host] : []), ...this.#private];
+    for (const fd of open) { try { this.#close(fd); } catch { /* already gone with the process */ } }
+    this.#entries.clear(); this.#private.clear();
   }
 }

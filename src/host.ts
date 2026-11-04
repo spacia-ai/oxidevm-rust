@@ -28,10 +28,17 @@ export interface AtFiles {
   poll(entries: readonly { readonly fd: FileDescriptor; readonly events: 1 | 4 | 5 }[], timeoutMs: number): readonly { readonly fd: FileDescriptor; readonly revents: number }[];
 }
 
+/** The VM's clocks (SDK capability "clock"): nanoseconds by the VM's own time, not the browser's. */
+export interface ClockHost { now(clock: "realtime" | "monotonic"): bigint; resolution(clock: "realtime" | "monotonic"): bigint }
+/** The VM's entropy (SDK capability "random"). */
+export interface RandomHost { fill(bytes: Uint8Array): void }
+
 export interface WasiHost {
   readonly kit: { readonly errno: Pick<BaseHost["kit"]["errno"], "of"> };
-  readonly fs: Pick<Host<"files.sync">["fs"], "read" | "write" | "fstat" | "seek" | "close" | "fsync" | "ftruncate">;
+  readonly fs: Pick<Host<"files.sync">["fs"], "read" | "write" | "fstat" | "seek" | "close" | "fsync" | "ftruncate" | "pipe">;
   readonly at: AtFiles | undefined;
+  readonly clock: ClockHost | undefined;
+  readonly random: RandomHost | undefined;
 }
 
 /** Linux open(2) and *at(2) flag values the adapter passes. */
