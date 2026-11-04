@@ -9,16 +9,16 @@ const hello = new WebAssembly.Module(await readFile(new URL("../upstream/bridge-
 const echoFile = new URL("../target/wasm32-wasip1/release/fixture-binary-echo.wasm", import.meta.url);
 const echo = await readFile(echoFile).then(bytes => new WebAssembly.Module(bytes), () => undefined);
 
-function io(args: readonly string[], argv0?: string, env: Readonly<Record<string, string>> = {}): CommandIO<RustCommandName> {
+function io(args: readonly string[], argv0?: string, env: Readonly<Record<string, string>> = {}, terminal = false): CommandIO<RustCommandName> {
   return {
     args, env, cwd: "/workspace", stdin: descriptor(0), stdout: descriptor(1), stderr: descriptor(2),
     invocation: argv0 === undefined ? { kind: "host" } : { kind: "command", name: "rust-bridge-demo", path: "/usr/local/bin/rust-bridge-demo", argv0 },
-    terminals: { stdin: false, stdout: false, stderr: false },
+    terminals: { stdin: terminal, stdout: terminal, stderr: terminal },
   };
 }
-async function run(program: WebAssembly.Module, args: readonly string[], argv0?: string, options: StreamsOptions = {}) {
+async function run(program: WebAssembly.Module, args: readonly string[], argv0?: string, options: StreamsOptions & { readonly terminal?: boolean } = {}) {
   const fake = streams(options);
-  const status = await rustCommand(fake.host, program, "rust-bridge-demo").main(io(args, argv0));
+  const status = await rustCommand(fake.host, program, "rust-bridge-demo").main(io(args, argv0, {}, options.terminal ?? false));
   return { status, stdout: new TextDecoder().decode(fake.stdout()), stdoutBytes: fake.stdout(), stderr: fake.stderr(), writes: fake.writes() };
 }
 
@@ -82,5 +82,36 @@ describe.skipIf(echo === undefined)("binary streams (OBL-BINARY-IO, OBL-PARTIAL-
     const result = await run(echo, [], undefined, { stdin: every, stdoutClosed: true });
     expect(result.status).toBe(1);
     expect(result.stderr).toMatch(/^binary-echo: Broken pipe/u);
+  });
+});
+
+describe("identity, directory and terminals (OBL-PID, OBL-CONTEXT, OBL-TTY; unit level)", () => {
+  const identity = async (options: StreamsOptions & { readonly terminal?: boolean } = {}, args: readonly string[] = ["identity"]) => {
+    const result = await run(hello, args, "rust-bridge-demo", options);
+    const parsed: unknown = JSON.parse(result.stdout);
+    return { ...result, parsed };
+  };
+
+  it("reports the VM's pid, parent and credentials through the bridge", async () => {
+    expect((await identity()).parsed).toMatchObject({ pid: 42, parent: 7, uid: 1000, gid: 1000 });
+  });
+
+  it("restores the caller's directory for std before main", async () => {
+    expect((await identity()).parsed).toMatchObject({ bridgeCwd: "/workspace", stdCwd: "/workspace" });
+  });
+
+  it("takes terminal-ness from Linux, so /dev/null (a character device) is not a terminal", async () => {
+    const devNull = await identity({ mode: 0o020666, terminal: false }, ["identity", "--prompt"]);
+    expect(devNull.parsed).toMatchObject({ terminals: [false, false, false] });
+    expect(devNull.stderr).toBe("");
+  });
+
+  it("reads a terminal as one and a FIFO as not one, and prompts only on a terminal", async () => {
+    const terminal = await identity({ mode: 0o020620, terminal: true }, ["identity", "--prompt"]);
+    expect(terminal.parsed).toMatchObject({ terminals: [true, true, true] });
+    expect(terminal.stderr).toBe("prompt> ");
+    const piped = await identity({ mode: 0o010600 }, ["identity", "--prompt"]);
+    expect(piped.parsed).toMatchObject({ terminals: [false, false, false] });
+    expect(piped.stderr).toBe("");
   });
 });

@@ -29,5 +29,5 @@ for (const file of (await readdir(built)).filter(name => name.endsWith(".wasm"))
   const found = leaks.find(needle => bytes.includes(needle, 0, "utf8"));
   if (found !== undefined) throw new Error(`${file} still contains the local path ${found}`);
 }
-await copyFile(join(built, "fixture-hello.wasm"), join(root, "upstream/bridge-demo.wasm"));
+await copyFile(join(built, "bridge-demo.wasm"), join(root, "upstream/bridge-demo.wasm"));
 process.stdout.write("built and staged upstream/bridge-demo.wasm\n");

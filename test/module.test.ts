@@ -7,7 +7,7 @@ describe("module definition", () => {
     expect(definition.manifest.abi).toBe("wasi");
     expect(definition.manifest.process.kind).toBe("command");
     expect(definition.manifest.commands).toEqual(["rust-bridge-demo"]);
-    // SL-01 needs files only; native processes (SL-06) and networking (SL-07) add their capabilities when they land.
-    expect(definition.manifest.requires.host).toEqual(["files.sync"]);
+    // Files and the process's own identity; native processes (SL-06) and networking (SL-07) add theirs when they land.
+    expect(definition.manifest.requires.host).toEqual(["files.sync", "process.info"]);
   });
 });

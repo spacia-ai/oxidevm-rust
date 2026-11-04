@@ -1,4 +1,4 @@
-# Every fixture is a wasm32-wasip1 command. The module profile (docs/contract.md) admits one bounded, unshared memory:
+# Every fixture is a wasm32-wasip1 command. The module profile admits one bounded, unshared memory:
 # a declared maximum of 256 MiB (4096 pages) and a 1 MiB stack. `pnpm run build:rust` (scripts/build-wasm.ts) passes
 # these flags together with source-path remaps, so no local path reaches a binary.
 [target.wasm32-wasip1]

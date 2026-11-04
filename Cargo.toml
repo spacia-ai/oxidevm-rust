@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["test/fixtures/rust/*"]
+members = ["crates/*", "examples/*", "test/fixtures/rust/*"]
 
 [workspace.package]
 edition = "2024"

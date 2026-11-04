@@ -1,0 +1,13 @@
+[package]
+name = "fixture-identity"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+oxidevm-bridge = { path = "../../../../crates/oxidevm-bridge" }
+
+[lints]
+workspace = true

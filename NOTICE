@@ -4,7 +4,7 @@ Copyright (c) 2026 Spacia B.V.
 An OxideVM WebAssembly module that runs Rust programs compiled for wasm32-wasip1 as Linux processes of an OxideVM
 virtual machine. Licensed under the Apache License, Version 2.0 (LICENSE).
 
-upstream/bridge-demo.wasm is built from test/fixtures/rust/hello in this repository with the toolchain pinned in
+upstream/bridge-demo.wasm is built from examples/bridge-demo and crates/oxidevm-bridge in this repository with the toolchain pinned in
 rust-toolchain.toml (scripts/build-wasm.ts). It contains code from the Rust standard library, which is licensed under
 the MIT license or the Apache License, Version 2.0 (https://github.com/rust-lang/rust); this module uses it under the
 Apache License, Version 2.0.

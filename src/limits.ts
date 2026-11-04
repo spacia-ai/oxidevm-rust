@@ -1,5 +1,5 @@
 /**
- * The first-release profile limits (SL-01 contract, docs/contract.md). Each is enforced where it is named and has a
+ * The first-release profile limits (SL-01 contract). Each is enforced where it is named and has a
  * boundary test at the endpoint and one past it.
  */
 export const LIMITS = {
