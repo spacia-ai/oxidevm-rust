@@ -38,6 +38,7 @@ const DIRECTORY_RIGHTS = ALL_RIGHTS & ~(RIGHT.fdRead | RIGHT.fdWrite | RIGHT.fdS
 export interface Run {
   readonly imports: Readonly<Record<string, ImportFunction>>;
   readonly table: DescriptorTable;
+  readonly context: WasiContext;
 }
 
 /**
@@ -70,5 +71,5 @@ export function preview1(host: WasiHost, memory: () => GuestMemory, stdio: Stdio
     ...launchFunctions(memory, launch, body => context.guarded(body)),
     ...streams(context), ...descriptorFunctions(context), ...pathFunctions(context), ...directoryFunctions(context), ...timeFunctions(context),
   };
-  return { imports: Object.fromEntries(PREVIEW1_IMPORTS.map(name => [name, served[name] ?? (() => PENDING[name] ?? WASI.nosys)])), table };
+  return { imports: Object.fromEntries(PREVIEW1_IMPORTS.map(name => [name, served[name] ?? (() => PENDING[name] ?? WASI.nosys)])), table, context };
 }

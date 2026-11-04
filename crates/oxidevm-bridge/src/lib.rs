@@ -4,6 +4,7 @@
 //! identity and working directory now, and native Linux programs and VM sockets in later steps. Linking it also
 //! restores the caller's working directory before `main`, which plain WASI programs do not get.
 mod abi;
+mod command;
 pub mod process;
 
 use std::fmt;
@@ -17,14 +18,21 @@ pub enum Error {
     Unavailable,
     /// The host's answer broke the ABI.
     Protocol(&'static str),
+    /// A command request broke a bound and was not started.
+    InvalidCommand(&'static str),
+    /// The child ran past its deadline and was killed.
+    TimedOut,
+    /// The child wrote more than its output limit and was killed.
+    OutputLimit,
 }
 
 impl Error {
     fn from_errno(errno: u32) -> Self {
-        if errno == abi::NOSYS {
-            Self::Unavailable
-        } else {
-            Self::Host(errno)
+        match errno {
+            abi::NOSYS => Self::Unavailable,
+            abi::TIMEDOUT => Self::TimedOut,
+            abi::TOOBIG => Self::OutputLimit,
+            other => Self::Host(other),
         }
     }
 }
@@ -35,6 +43,13 @@ impl fmt::Display for Error {
             Self::Host(errno) => write!(f, "the OxideVM host failed with WASI errno {errno}"),
             Self::Unavailable => f.write_str("the OxideVM bridge is not available to this program"),
             Self::Protocol(reason) => write!(f, "the OxideVM bridge broke its ABI: {reason}"),
+            Self::InvalidCommand(reason) => write!(f, "invalid native command: {reason}"),
+            Self::TimedOut => {
+                f.write_str("the native command ran past its deadline and was killed")
+            }
+            Self::OutputLimit => {
+                f.write_str("the native command exceeded its output limit and was killed")
+            }
         }
     }
 }

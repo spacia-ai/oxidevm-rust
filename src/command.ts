@@ -1,20 +1,25 @@
 import type { BaseHost, CommandHooks, Host, Stdio } from "@oxidevm/sdk/wasm";
+import { bridgeCommand, COMMAND_FUNCTIONS } from "./bridge/command.ts";
 import { bridgeProcess, PROCESS_FUNCTIONS, type Identity } from "./bridge/process.ts";
 import { mapGuestExit } from "./exit.ts";
 import { GuestMemory } from "./memory.ts";
 import { admitProgram, AdmissionError } from "./wasi/admission.ts";
 import { BRIDGE_NAMESPACE, PREVIEW1_NAMESPACE } from "./wasi/imports.ts";
-import type { WasiHost } from "./host.ts";
+import type { ProcessSyncHost, WasiHost } from "./host.ts";
 import { encodeLaunch, LaunchError, preview1, ProcExit, type Preopen } from "./wasi/preview1.ts";
 
 /** The host members a Rust command uses: its standard streams, the kit, failure reporting and Linux files. */
-export type RustCommandHost = Pick<BaseHost, "fail"> & WasiHost & { readonly process: Pick<Host<"process.info">["process"], "info"> };
+export type RustCommandHost = Pick<BaseHost, "fail"> & WasiHost & {
+  readonly process: Pick<Host<"process.info">["process"], "info">;
+  /** Synchronous native runs (SDK capability "process.sync"); without it command_run answers NOSYS. */
+  readonly processSync: ProcessSyncHost | undefined;
+};
 
 /** The commands this module declares (module.ts `commands`). */
 export type RustCommandName = "rust-bridge-demo";
 
-/** The bridge functions this release serves (oxidevm_bridge_v1); native processes and sockets follow. */
-const BRIDGE_FUNCTIONS: ReadonlySet<string> = new Set(PROCESS_FUNCTIONS);
+/** The bridge functions this release serves (oxidevm_bridge_v1); sockets follow. */
+const BRIDGE_FUNCTIONS: ReadonlySet<string> = new Set([...PROCESS_FUNCTIONS, ...COMMAND_FUNCTIONS]);
 
 /**
  * Runs one compiled wasm32-wasip1 Rust command per invocation: the program is admitted once, and every run gets a fresh
@@ -39,7 +44,7 @@ export function rustCommand(host: RustCommandHost, program: WebAssembly.Module, 
       const wasi = preview1(host, memory, stdio, launch, io.terminals, preopens);
       const instance = new WebAssembly.Instance(program, {
         [PREVIEW1_NAMESPACE]: wasi.imports,
-        [BRIDGE_NAMESPACE]: bridgeProcess(memory, identity),
+        [BRIDGE_NAMESPACE]: { ...bridgeProcess(memory, identity), ...bridgeCommand(wasi.context, host.processSync, memory) },
       });
       const exported = instance.exports["memory"], start = instance.exports["_start"];
       if (!(exported instanceof WebAssembly.Memory) || typeof start !== "function") throw new AdmissionError("the program lost its memory or _start export");

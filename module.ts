@@ -13,6 +13,7 @@ export default defineModule({
     requires: { host: ["files.sync", "process.info"] },
     license: { spdx: "Apache-2.0" },
   },
-  // `files.at`, `clock` and `random` arrive with the next SDK release; until then those operations answer NOSYS.
-  adapter: async host => rustCommand({ ...host, at: undefined, clock: undefined, random: undefined }, await host.artifacts.compile("bridge-demo.wasm"), "rust-bridge-demo"),
+  // `files.at`, `clock`, `random` and `process.sync` arrive with the next SDK release; until then those operations
+  // answer NOSYS.
+  adapter: async host => rustCommand({ ...host, at: undefined, clock: undefined, random: undefined, processSync: undefined }, await host.artifacts.compile("bridge-demo.wasm"), "rust-bridge-demo"),
 });

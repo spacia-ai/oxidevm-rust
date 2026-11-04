@@ -6,7 +6,7 @@ import type { FileDescriptor, LinuxFileStat, LinuxProcessInfo } from "@oxidevm/s
 type ProcessId = LinuxProcessInfo["pid"];
 import type { RustCommandHost } from "../../src/command.ts";
 import type { FakeFiles } from "./files.ts";
-import type { ClockHost, RandomHost } from "../../src/host.ts";
+import type { ClockHost, ProcessSyncHost, RandomHost } from "../../src/host.ts";
 
 export class FakeLinuxError extends Error {
   constructor(readonly errno: number) { super(`errno ${String(errno)}`); }
@@ -23,6 +23,7 @@ export interface StreamsOptions {
   /** Files behind files.at and the file members of files.sync; absent, as on an SDK without files.at. */
   readonly files?: FakeFiles;
   readonly clock?: ClockHost;
+  readonly processSync?: ProcessSyncHost;
   readonly random?: RandomHost;
   /** The mode fstat reports for every stream (default a FIFO). */
   readonly mode?: number;
@@ -68,6 +69,7 @@ export function streams(options: StreamsOptions = {}): Streams {
       ftruncate: (fd, length) => { if (options.files?.owns(fd) === true) { options.files.truncate(fd, BigInt(length)); return; } throw new FakeLinuxError(22); },
     },
     at: options.files?.at,
+    processSync: options.processSync,
     clock: options.clock,
     random: options.random,
     process: { info: () => Promise.resolve({ pid: descriptorPid(42), parentPid: descriptorPid(7), uid: 1000, gid: 1000, cwd: "/workspace", args: [], environment: [], terminal: null }) },

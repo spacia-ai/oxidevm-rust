@@ -6,6 +6,10 @@
 
 /// WASI errno: function not supported.
 pub(crate) const NOSYS: u32 = 52;
+/// WASI errno: the native command's deadline passed.
+pub(crate) const TIMEDOUT: u32 = 73;
+/// WASI errno: the native command's output exceeded its limit.
+pub(crate) const TOOBIG: u32 = 1;
 
 #[cfg(target_arch = "wasm32")]
 mod imports {
@@ -13,6 +17,22 @@ mod imports {
     unsafe extern "C" {
         pub(crate) fn process_info(out: *mut u32) -> u32;
         pub(crate) fn process_cwd(buffer: *mut u8, len: u32, out_len: *mut u32) -> u32;
+        pub(crate) fn command_run(
+            request: *const u8,
+            len: u32,
+            out_handle: *mut u32,
+            out_sizes: *mut u32,
+        ) -> u32;
+        pub(crate) fn result_status(handle: u32, out: *mut u32) -> u32;
+        pub(crate) fn result_read(
+            handle: u32,
+            stream: u32,
+            offset: u32,
+            buffer: *mut u8,
+            len: u32,
+            out_read: *mut u32,
+        ) -> u32;
+        pub(crate) fn result_close(handle: u32) -> u32;
     }
 }
 
@@ -48,6 +68,94 @@ pub(crate) fn process_cwd(buffer: &mut [u8]) -> Result<usize, u32> {
     #[cfg(not(target_arch = "wasm32"))]
     {
         let _ = buffer;
+        Err(NOSYS)
+    }
+}
+
+/// Runs an encoded command request; returns the result handle and the stdout and stderr sizes.
+pub(crate) fn command_run(request: &[u8]) -> Result<(u32, [u32; 2]), u32> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let length = u32::try_from(request.len()).map_err(|_| 28_u32)?;
+        let (mut handle, mut sizes) = (0_u32, [0_u32; 2]);
+        // SAFETY: `request` is readable for `length` bytes; `handle` and `sizes` are live and writable for the call.
+        let errno = unsafe {
+            imports::command_run(request.as_ptr(), length, &mut handle, sizes.as_mut_ptr())
+        };
+        if errno == 0 {
+            Ok((handle, sizes))
+        } else {
+            Err(errno)
+        }
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = request;
+        Err(NOSYS)
+    }
+}
+
+/// `[pid, kind, value]` of a finished command (kind 0 exited, 1 signaled).
+pub(crate) fn result_status(handle: u32) -> Result<[u32; 3], u32> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let mut out = [0_u32; 3];
+        // SAFETY: `out` is a live, writable array of three u32 for the call.
+        let errno = unsafe { imports::result_status(handle, out.as_mut_ptr()) };
+        if errno == 0 { Ok(out) } else { Err(errno) }
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = handle;
+        Err(NOSYS)
+    }
+}
+
+/// Copies retained output of `stream` (1 stdout, 2 stderr) from `offset`; returns the bytes copied.
+pub(crate) fn result_read(
+    handle: u32,
+    stream: u32,
+    offset: u32,
+    buffer: &mut [u8],
+) -> Result<usize, u32> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let capacity = u32::try_from(buffer.len()).map_err(|_| 28_u32)?;
+        let mut read = 0_u32;
+        // SAFETY: `buffer` is writable for `capacity` bytes and `read` is a live u32, both for the call.
+        let errno = unsafe {
+            imports::result_read(
+                handle,
+                stream,
+                offset,
+                buffer.as_mut_ptr(),
+                capacity,
+                &mut read,
+            )
+        };
+        if errno == 0 {
+            usize::try_from(read).map_err(|_| 61_u32)
+        } else {
+            Err(errno)
+        }
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = (handle, stream, offset, buffer);
+        Err(NOSYS)
+    }
+}
+
+pub(crate) fn result_close(handle: u32) -> Result<(), u32> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        // SAFETY: no pointers cross this call.
+        let errno = unsafe { imports::result_close(handle) };
+        if errno == 0 { Ok(()) } else { Err(errno) }
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = handle;
         Err(NOSYS)
     }
 }

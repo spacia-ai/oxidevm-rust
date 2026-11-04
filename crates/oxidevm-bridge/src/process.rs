@@ -1,4 +1,7 @@
-//! This process's identity and, from a later release step, native Linux programs it starts.
+//! This process's identity and the native Linux programs it starts.
+pub use crate::command::{
+    Command, ExitStatus, MAX_ARGS, MAX_INPUT, MAX_OUTPUT, MAX_TIMEOUT, Output,
+};
 use crate::{Error, abi};
 use std::path::PathBuf;
 

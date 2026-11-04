@@ -28,6 +28,15 @@ export interface AtFiles {
   poll(entries: readonly { readonly fd: FileDescriptor; readonly events: 1 | 4 | 5 }[], timeoutMs: number): readonly { readonly fd: FileDescriptor; readonly revents: number }[];
 }
 
+/** A native child run to completion (SDK capability "process.sync", `runSync`). */
+export interface NativeRunSpec {
+  readonly command: string; readonly args: readonly string[]; readonly cwd?: string; readonly env?: Readonly<Record<string, string>>;
+  readonly input: Uint8Array; readonly timeoutMs: number; readonly stdoutLimit: number; readonly stderrLimit: number;
+}
+export type NativeExit = { readonly kind: "exited"; readonly code: number } | { readonly kind: "signaled"; readonly signalNumber: number };
+export interface NativeRunResult { readonly pid: number; readonly exit: NativeExit; readonly stdout: Uint8Array; readonly stderr: Uint8Array }
+export interface ProcessSyncHost { runSync(spec: NativeRunSpec): NativeRunResult }
+
 /** The VM's clocks (SDK capability "clock"): nanoseconds by the VM's own time, not the browser's. */
 export interface ClockHost { now(clock: "realtime" | "monotonic"): bigint; resolution(clock: "realtime" | "monotonic"): bigint }
 /** The VM's entropy (SDK capability "random"). */
