@@ -21,7 +21,7 @@ describe.skipIf(probe === undefined)("Rust std::fs through the adapter (SL-04, u
     const files = new FakeFiles({}, ["/workspace", "/workspace/t"]);
     const fake = streams({ files });
     const probes = ["fs_write_read", "fs_append_seek", "fs_metadata", "fs_create_dir_read_dir", "fs_rename", "fs_hard_link", "fs_set_len_sync", "fs_remove"];
-    expect(await rustCommand(fake.host, probe, "rust-bridge-demo").main(io(probes, { PROBE_DIR: "/workspace/t" }))).toBe(0);
+    expect(await rustCommand(fake.host, probe).main(io(probes, { PROBE_DIR: "/workspace/t" }))).toBe(0);
     const lines = new TextDecoder().decode(fake.stdout()).trim().split("\n");
     expect(lines).toEqual([
       "fs_write_read: ok 11 bytes",
@@ -46,7 +46,7 @@ describe.skipIf(probe === undefined)("Rust std::fs through the adapter (SL-04, u
     const files = new FakeFiles({ "/workspace/t/probe.txt": "x" }, ["/workspace", "/workspace/t"]);
     files.at.symlinkAt("probe.txt", files.at.cwd, "t/probe.link");
     const fake = streams({ files });
-    expect(await rustCommand(fake.host, probe, "rust-bridge-demo").main(io(["fs_read_link"], { PROBE_DIR: "/workspace/t" }))).toBe(0);
+    expect(await rustCommand(fake.host, probe).main(io(["fs_read_link"], { PROBE_DIR: "/workspace/t" }))).toBe(0);
     expect(new TextDecoder().decode(fake.stdout())).toBe("fs_read_link: ok probe.txt\n");
   });
 });
@@ -61,7 +61,7 @@ describe.skipIf(probe === undefined)("Rust std time and randomness through the a
     const base = streams({ files, clock: { now: () => now, resolution: () => 1n }, random: { fill: bytes => { bytes.fill(1); } } });
     let next = 200;
     const host = { ...base.host, at, fs: { ...base.host.fs, pipe: () => [descriptor(next++), descriptor(next++)] as const, close: (fd: Parameters<typeof base.host.fs.close>[0]) => { if (fd < 200) base.host.fs.close(fd); } } };
-    expect(await rustCommand(host, probe, "rust-bridge-demo").main(io(["time_system", "time_sleep", "random_hashmap"], {}))).toBe(0);
+    expect(await rustCommand(host, probe).main(io(["time_system", "time_sleep", "random_hashmap"], {}))).toBe(0);
     expect(new TextDecoder().decode(base.stdout()).trim().split("\n")).toEqual(["time_system: ok 1700000000s", "time_sleep: ok 50ms", "random_hashmap: ok 1 entries"]);
     expect(waits).toEqual([50]);
   });

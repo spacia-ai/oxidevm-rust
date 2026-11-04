@@ -1,6 +1,11 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "examples/*", "test/fixtures/rust/*"]
+members = ["examples/*", "test/fixtures/rust/*"]
+
+# The bridge crate lives with the SDK (spacia-ai/oxidevm-sdk, crates/oxidevm-bridge) and is published to crates.io.
+# Until it is, scripts/cargo.ts points Cargo at a checkout of it: OXIDEVM_BRIDGE_PATH=<sdk>/crates/oxidevm-bridge.
+[workspace.dependencies]
+oxidevm-bridge = "0.1"
 
 [workspace.package]
 edition = "2024"

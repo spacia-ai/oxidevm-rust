@@ -4,48 +4,45 @@ An OxideVM module for Rust programs compiled to WebAssembly (`wasm32-wasip1`): e
 VM, with the caller's arguments, environment and standard streams, the VM's live files, and, through a small bridge
 crate, native Linux programs and VM sockets.
 
-**Status: under development, not released.** The module runs a pinned Rust program with its arguments, standard streams,
-exit status, real process identity and working directory. Files, clocks, native child processes, sockets and running
-your own `.wasm` files are not implemented yet. There is no release to install.
+**Status: under development, not released.** It needs an OxideVM SDK release with Userspace API 147, which is not
+published yet. There is no release to install.
 
-## What works today
+This module is a thin command layer. The WASI Preview1 implementation is the SDK's
+[`host.kit.wasi`](https://oxidevm.dev/docs/reference/wasi-kit/), and the Rust crate programs link is
+[`oxidevm-bridge`](https://oxidevm.dev/docs/reference/wasi-bridge/), which lives in the SDK repository
+(`crates/oxidevm-bridge`) and goes to crates.io with the SDK release. Any module can run Rust programs the same way;
+see the guide [Run Rust programs](https://oxidevm.dev/docs/guides/rust-programs/).
 
-- `rust-bridge-demo`, a pinned Rust program, runs as a module command with argv, environment, binary-safe standard
-  streams and its exit status (0-119 exactly; a larger code is reported as 1 with a line naming the original).
-- Programs are checked before they run: only WASI Preview1 and `oxidevm_bridge_v1` function imports are admitted.
-- `oxidevm-bridge` (crates/oxidevm-bridge) reports the VM's pid, parent, uid, gid and the caller's directory, and moves
-  wasi-libc to that directory before `main`. `IsTerminal` agrees with Linux `isatty`.
+## Commands
 
-## Roadmap
+- `rust-wasi [--dir <path>[:ro]]... <program.wasm> [--] [args...]` reads a `.wasm` file from the VM (at most 32 MiB),
+  checks it before any of its code runs, and starts it as a Linux process with its own arguments. Without `--dir` the
+  program may use the whole VM tree under the caller's permissions; `--dir` grants only the named directories, and
+  `:ro` grants one read-only.
+- `rust-bridge-demo` is a pinned example program (`examples/bridge-demo`) that exercises standard streams, files, native
+  children and sockets; `rust-bridge-demo summarize <in.csv> <out.csv>` is the end-to-end example used by the
+  `oxidevm-pyodide-test` sample.
 
-The docs and code name these steps:
-
-| Step | Outcome |
-| --- | --- |
-| SL-01 | First-release contract, fixtures and the synchronous host seam (done) |
-| SL-02 | Process identity, launch context and standard streams (done) |
-| SL-03 | Descriptor-relative, positional and readiness operations in the OxideVM SDK and engine |
-| SL-04 | WASI files on the VM's live filesystem, confined to granted directories by the engine |
-| SL-05 | Clocks, sleeping, polling and randomness without busy waiting |
-| SL-06 | `oxidevm_bridge::process` for native Linux programs, owned by the module |
-| SL-07 | `oxidevm_bridge::net` client streams under the module's declared reach |
-| SL-08 | `rust-wasi <program.wasm>` for `.wasm` files from the VM's filesystem |
-| SL-09 – SL-11 | An end-to-end example, browser qualification, and the first release |
-
-Plain Rust `std` covers standard streams, arguments, environment and, as the roadmap lands, files and clocks.
-`std::process`, `std::thread` and `std::net` are compiled as unsupported for `wasm32-wasip1`; the `oxidevm-bridge` crate
-provides native processes and sockets instead.
+Programs see standard streams, arguments, the environment, the VM's live files, its clocks and entropy through plain
+Rust `std`. Native Linux programs, sockets, the process identity and the working directory come from `oxidevm-bridge`.
+An exit status from 0 to 119 is reported exactly; a larger one is reported as 1 with a line naming the original.
 
 ## Network
 
-The module declares no network reach and makes no network requests.
+The module declares `net.vm`: programs reach the VM's own TCP and Unix sockets through `oxidevm-bridge`, and nothing
+outside the VM. The module itself makes no network requests.
 
 ## Develop
 
+Until `oxidevm-bridge` is on crates.io, Cargo needs a checkout of it. `OXIDEVM_BRIDGE_PATH` names one, and
+`scripts/cargo.ts` and `pnpm run build:rust` patch it in:
+
 ```sh
+export OXIDEVM_BRIDGE_PATH=<oxidevm-sdk checkout>/crates/oxidevm-bridge
 rustup target add wasm32-wasip1
 pnpm install --frozen-lockfile
 pnpm run build:rust
+node scripts/cargo.ts clippy --workspace --all-targets --target wasm32-wasip1 -- -D warnings
 pnpm run inspect:fixtures
 pnpm run check
 pnpm test

@@ -1,11 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import type { CommandIO } from "@oxidevm/sdk/wasm";
-import { decodeRequest } from "../src/bridge/command.ts";
 import { rustCommand, type RustCommandName } from "../src/command.ts";
-import type { NativeRunResult, NativeRunSpec, ProcessSyncHost } from "../src/host.ts";
-import { WasiError } from "../src/wasi/context.ts";
-import { descriptor, FakeLinuxError, streams } from "./support/streams.ts";
+import type { NativeSyncRunResult as NativeRunResult, NativeSyncRunSpec as NativeRunSpec, ProcessSync } from "@oxidevm/sdk/js-process";
+import { descriptor, FakeLinuxError, processId, streams } from "./support/streams.ts";
 
 const demo = new WebAssembly.Module(await readFile(new URL("../upstream/bridge-demo.wasm", import.meta.url)));
 const every = Uint8Array.from({ length: 512 }, (_, index) => index % 256);
@@ -13,16 +11,17 @@ const every = Uint8Array.from({ length: 512 }, (_, index) => index % 256);
 function io(args: readonly string[]): CommandIO<RustCommandName> {
   return { args, env: { HOME: "/workspace" }, cwd: "/workspace", stdin: descriptor(0), stdout: descriptor(1), stderr: descriptor(2), invocation: { kind: "host" }, terminals: { stdin: false, stdout: false, stderr: false } };
 }
+type ProcessSyncHost = Pick<ProcessSync, "runSync">;
 async function run(args: readonly string[], processSync: ProcessSyncHost | undefined, stdin = new Uint8Array()) {
   const fake = streams({ stdin, ...(processSync === undefined ? {} : { processSync }) });
-  const status = await rustCommand(fake.host, demo, "rust-bridge-demo").main(io(args));
+  const status = await rustCommand(fake.host, demo).main(io(args));
   return { status, stdout: fake.stdout(), stderr: fake.stderr() };
 }
 
 describe("native children through the bridge (OBL-NATIVE-OUTPUT, OBL-CHILD-STATUS; unit level)", () => {
   it("sends binary input and returns binary output, the real pid and an exact status", async () => {
     const seen: NativeRunSpec[] = [];
-    const host: ProcessSyncHost = { runSync: spec => { seen.push(spec); return { pid: 77, exit: { kind: "exited", code: 255 }, stdout: spec.input.slice().reverse(), stderr: Uint8Array.of(0) }; } };
+    const host: ProcessSyncHost = { runSync: spec => { seen.push(spec); return { pid: processId(77), exit: { kind: "exited", code: 255 }, stdout: (spec.input ?? new Uint8Array()).slice().reverse(), stderr: Uint8Array.of(0) }; } };
     const result = await run(["run", "/bin/gzip", "-c", "two words"], host, every);
     expect(seen[0]).toMatchObject({ command: "/bin/gzip", args: ["-c", "two words"], timeoutMs: 30_000, stdoutLimit: 1024 * 1024, stderrLimit: 1024 * 1024 });
     expect(seen[0]?.input).toEqual(every);
@@ -32,7 +31,7 @@ describe("native children through the bridge (OBL-NATIVE-OUTPUT, OBL-CHILD-STATU
   });
 
   it("reports a signal death as a tagged status", async () => {
-    const host: ProcessSyncHost = { runSync: () => ({ pid: 8, exit: { kind: "signaled", signalNumber: 9 }, stdout: new Uint8Array(), stderr: new Uint8Array() }) };
+    const host: ProcessSyncHost = { runSync: () => ({ pid: processId(8), exit: { kind: "signaled", signal: "SIGKILL", signalNumber: 9 }, stdout: new Uint8Array(), stderr: new Uint8Array() }) };
     const result = await run(["run", "/bin/sh", "-c", "kill -9 $$"], host);
     expect(result.stderr).toBe("rust-bridge-demo: child 8 Signaled(9)\n");
     expect(result.status).toBe(109);
@@ -50,45 +49,15 @@ describe("native children through the bridge (OBL-NATIVE-OUTPUT, OBL-CHILD-STATU
   });
 });
 
-describe("command request decoding (OBL-NATIVE-VALIDATE)", () => {
-  type Part = number | string | Uint8Array | { readonly u8: 0 | 1 };
-  const N: Part = { u8: 0 }, Y: Part = { u8: 1 };
-  const encode = (parts: readonly Part[]) => {
-    const out: number[] = [];
-    const u32 = (value: number) => { out.push(value & 0xff, (value >> 8) & 0xff, (value >> 16) & 0xff, value >>> 24); };
-    for (const part of parts) {
-      if (typeof part === "object" && "u8" in part) out.push(part.u8);
-      else if (typeof part === "number") u32(part);
-      else { const bytes = typeof part === "string" ? new TextEncoder().encode(part) : part; u32(bytes.byteLength); out.push(...bytes); }
-    }
-    return Uint8Array.from(out);
-  };
-  const valid = ["/bin/x", 1, "a", N, N, new Uint8Array(), 1000, 10, 10] as const;
-  const refused = (parts: readonly Part[]) => { try { decodeRequest(encode(parts)); return false; } catch (error) { return error instanceof WasiError; } };
-
-  it("accepts a valid request exactly and refuses every broken bound before anything runs", () => {
-    expect(decodeRequest(encode(valid))).toEqual({ command: "/bin/x", args: ["a"], input: new Uint8Array(), timeoutMs: 1000, stdoutLimit: 10, stderrLimit: 10 });
-    expect(refused(["bin/x", 0, N, N, new Uint8Array(), 1000, 10, 10])).toBe(true);
-    expect(refused(["/bin/x", 64, ...Array.from({ length: 64 }, () => "a"), N, N, new Uint8Array(), 1000, 10, 10])).toBe(true);
-    expect(refused(["/bin/x", 1, "a\0b", N, N, new Uint8Array(), 1000, 10, 10])).toBe(true);
-    expect(refused(["/bin/x", 0, N, N, new Uint8Array(), 0, 10, 10])).toBe(true);
-    expect(refused(["/bin/x", 0, N, N, new Uint8Array(), 180_001, 10, 10])).toBe(true);
-    expect(refused(["/bin/x", 0, N, N, new Uint8Array(), 1000, 1024 * 1024 + 1, 10])).toBe(true);
-    expect(refused(["/bin/x", 0, N, Y, 1, "=v", new Uint8Array(), 1000, 10, 10])).toBe(true);
-    expect(refused([...valid, 0])).toBe(true);
-    expect(refused(valid.slice(0, -1))).toBe(true);
-  });
-});
-
 describe("rust-bridge-demo summarize (the SL-09 example program)", () => {
   it("totals per country, writes the summary atomically, compresses it natively and verifies the round trip", async () => {
     const { FakeFiles } = await import("./support/files.ts");
     const files = new FakeFiles({ "/workspace/data.csv": "order_id,country,total\n1,Netherlands,149\n2,Germany,119\n3,France,99\n4,Netherlands,150\n5,United Kingdom,129\n6,Germany,120\n7,France,90\n8,Netherlands,150\n" }, ["/workspace"]);
     const calls: string[][] = [];
     // A reversible stand-in for gzip: -c reverses the bytes, -d -c reverses them back.
-    const gzip: ProcessSyncHost = { runSync: spec => { calls.push([spec.command, ...spec.args]); return { pid: 40 + calls.length, exit: { kind: "exited", code: 0 }, stdout: spec.input.slice().reverse(), stderr: new Uint8Array() }; } };
+    const gzip: ProcessSyncHost = { runSync: spec => { calls.push([spec.command, ...(spec.args ?? [])]); return { pid: processId(40 + calls.length), exit: { kind: "exited", code: 0 }, stdout: (spec.input ?? new Uint8Array()).slice().reverse(), stderr: new Uint8Array() }; } };
     const fake = streams({ files, processSync: gzip });
-    const status = await rustCommand(fake.host, demo, "rust-bridge-demo").main(io(["summarize", "data.csv", "summary.csv"]));
+    const status = await rustCommand(fake.host, demo).main(io(["summarize", "data.csv", "summary.csv"]));
     expect(status).toBe(0);
     const summary = "country,orders,total\nFrance,2,189\nGermany,2,239\nNetherlands,3,449\nUnited Kingdom,1,129\n";
     expect(new TextDecoder().decode(files.tree.get("/workspace/summary.csv")?.data)).toBe(summary);

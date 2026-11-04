@@ -19,7 +19,7 @@ function io(args: readonly string[], argv0?: string, env: Readonly<Record<string
 }
 async function run(program: WebAssembly.Module, args: readonly string[], argv0?: string, options: StreamsOptions & { readonly terminal?: boolean } = {}) {
   const fake = streams(options);
-  const status = await rustCommand(fake.host, program, "rust-bridge-demo").main(io(args, argv0, {}, options.terminal ?? false));
+  const status = await rustCommand(fake.host, program).main(io(args, argv0, {}, options.terminal ?? false));
   return { status, stdout: new TextDecoder().decode(fake.stdout()), stdoutBytes: fake.stdout(), stderr: fake.stderr(), writes: fake.writes() };
 }
 
@@ -53,7 +53,7 @@ describe("the pinned Rust command (OBL-TEMPLATE, OBL-ARGS)", () => {
 
   it("gives every run a fresh instance (OBL-FRESH-STATE, unit level)", async () => {
     const first = streams();
-    const command = rustCommand(first.host, hello, "rust-bridge-demo");
+    const command = rustCommand(first.host, hello);
     expect(await command.main(io(["one"]))).toBe(0);
     expect(await command.main(io(["two"]))).toBe(0);
     expect(new TextDecoder().decode(first.stdout())).toBe(`hello from rust wasm: ["rust-bridge-demo", "one"]\nhello from rust wasm: ["rust-bridge-demo", "two"]\n`);

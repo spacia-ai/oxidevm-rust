@@ -13,9 +13,5 @@ export default defineModule({
     requires: { host: ["files.sync", "files.at", "clock", "random", "process.info", "process.sync", "net.vm"] },
     license: { spdx: "Apache-2.0" },
   },
-  adapter: async host => rustCommand({
-    ...host,
-    processSync: host.process,
-    netSync: { connectSync: options => host.net.connectSync(options), connectUnixSync: path => host.net.connectUnixSync(path), errno: error => host.kit.net.errno(error) },
-  }, await host.artifacts.compile("bridge-demo.wasm"), "rust-bridge-demo"),
+  adapter: async host => rustCommand(host, await host.kit.wasi.compile(await host.artifacts.bytes("bridge-demo.wasm"))),
 });

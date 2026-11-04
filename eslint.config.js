@@ -5,7 +5,7 @@ import tseslint from "typescript-eslint";
 export default defineConfig(
   // The browser page and suites are type-checked strictly inside the consumer project test/browser/run.ts builds, where
   // the module's generated handles exist.
-  { ignores: ["dist/**", "node_modules/**", "target/**", "test-results/**", "eslint.config.js", "test/browser/page/**", "test/browser/suites/**"] },
+  { ignores: ["dist/**", "node_modules/**", "target/**", "test-results/**", "eslint.config.js", ".sdk/**", "test/browser/page/**", "test/browser/suites/**"] },
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
   {

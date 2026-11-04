@@ -15,7 +15,7 @@ const io = (args: readonly string[], cwd = "/workspace"): CommandIO<RustCommandN
 });
 async function runWasi(args: readonly string[], programs: Readonly<Record<string, Uint8Array>>, cwd?: string) {
   const fake = streams({ programs, files: new FakeFiles({}, ["/workspace", "/srv"]) });
-  const status = await rustCommand(fake.host, demo, "rust-bridge-demo").main(io(args, cwd));
+  const status = await rustCommand(fake.host, demo).main(io(args, cwd));
   return { status, stdout: new TextDecoder().decode(fake.stdout()), stderr: fake.stderr() };
 }
 

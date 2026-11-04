@@ -4,3 +4,4 @@ target/
 *.log
 test-results/
 docs/
+.sdk/
