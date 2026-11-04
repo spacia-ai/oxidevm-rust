@@ -1,0 +1,26 @@
+{
+  "name": "oxidevm-rust",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "oxidevm wasm build",
+    "check": "tsc --noEmit && tsc --noEmit -p test && tsc --noEmit -p scripts && eslint . --max-warnings 0 && oxidevm wasm build --check",
+    "release": "oxidevm wasm release",
+    "test": "vitest run",
+    "test:conformance": "oxidevm wasm build && oxidevm wasm test --arg=--exit --arg=0",
+    "build:rust": "node scripts/build-wasm.ts",
+    "inspect:fixtures": "node scripts/inspect-fixtures.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@oxidevm/cli": "0.0.12",
+    "@oxidevm/sdk": "0.0.12",
+    "@types/node": "24.13.3",
+    "eslint": "10.7.0",
+    "playwright": "1.61.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.65.0",
+    "vitest": "3.2.4"
+  }
+}

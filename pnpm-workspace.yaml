@@ -1,0 +1,5 @@
+allowBuilds:
+  esbuild: true
+minimumReleaseAgeExclude:
+  - '@oxidevm/cli@0.0.12'
+  - '@oxidevm/sdk@0.0.12'

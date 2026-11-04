@@ -1,0 +1,29 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: rustup show && rustup target add wasm32-wasip1
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build:rust
+      - run: git diff --exit-code -- upstream
+      - run: pnpm run inspect:fixtures
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --locked --workspace --all-targets --target wasm32-wasip1 -- -D warnings
+      - run: pnpm run check
+      - run: pnpm test
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm run test:conformance
