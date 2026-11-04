@@ -73,13 +73,13 @@ describe("rights (OBL-FD-RIGHTS)", () => {
 });
 
 describe("read-only and confined preopens (OBL-PATH-RO, OBL-PATH-DENIED)", () => {
-  it("refuses every mutation through a read-only preopen before the host sees it", () => {
+  it("refuses every mutation through a read-only preopen with ROFS before the host sees it", () => {
     const { call, path, files } = setup([{ guest: "/srv", host: "/srv", readOnly: true }]);
     const before = files.calls.length;
-    expect(call("path_create_directory", ROOT, ...path("new"))).toBe(WASI.notcapable);
-    expect(call("path_unlink_file", ROOT, ...path("data"))).toBe(WASI.notcapable);
-    expect(call("path_open", ROOT, 0, ...path("f"), 1, RIGHT.fdWrite, 0n, 0, OUT)).toBe(WASI.notcapable);
-    expect(call("path_rename", ROOT, ...path("a"), ROOT, ...path("b", PATHS + 64))).toBe(WASI.notcapable);
+    expect(call("path_create_directory", ROOT, ...path("new"))).toBe(WASI.rofs);
+    expect(call("path_unlink_file", ROOT, ...path("data"))).toBe(WASI.rofs);
+    expect(call("path_open", ROOT, 0, ...path("f"), 1, RIGHT.fdWrite, 0n, 0, OUT)).toBe(WASI.rofs);
+    expect(call("path_rename", ROOT, ...path("a"), ROOT, ...path("b", PATHS + 64))).toBe(WASI.rofs);
     expect(files.calls.length).toBe(before);
   });
 

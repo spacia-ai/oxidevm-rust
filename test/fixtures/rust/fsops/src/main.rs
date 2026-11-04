@@ -1,5 +1,6 @@
 //! File operations for the real-engine suites: each operation prints `<op>: ok <detail>` or `<op>: err <ErrorKind>`,
-//! so a shell script can compare the outcome with what native tools see.
+//! so a shell script can compare the outcome with what native tools see. It links oxidevm-bridge, which moves wasi-libc
+//! to the caller's directory before `main`, so relative paths resolve as they would natively.
 //!
 //!   fsops cat <path> | write <path> <text> | append <path> <text> | ls <dir> | mkdir <dir> | rm <path> | rmdir <dir>
 //!   fsops mv <from> <to> | stat <path> | sleep <ms> | cwd
@@ -69,6 +70,8 @@ fn run(args: &[String]) -> std::io::Result<String> {
 }
 
 fn main() -> ExitCode {
+    // Linking the bridge restores the caller's directory; referencing it keeps the crate in the link.
+    let _ = oxidevm_bridge::process::cwd;
     let args: Vec<String> = std::env::args().skip(1).collect();
     let op = args.first().cloned().unwrap_or_default();
     match run(&args) {

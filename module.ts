@@ -10,10 +10,12 @@ export default defineModule({
     artifacts: [{ name: "bridge-demo.wasm", from: "upstream/bridge-demo.wasm" }],
     process: { kind: "command" },
     commands: ["rust-bridge-demo", "rust-wasi"],
-    requires: { host: ["files.sync", "process.info"] },
+    requires: { host: ["files.sync", "files.at", "clock", "random", "process.info", "process.sync", "net.vm"] },
     license: { spdx: "Apache-2.0" },
   },
-  // `files.at`, `clock`, `random` and `process.sync` arrive with the next SDK release; until then those operations
-  // answer NOSYS.
-  adapter: async host => rustCommand({ ...host, at: undefined, clock: undefined, random: undefined, processSync: undefined, netSync: undefined }, await host.artifacts.compile("bridge-demo.wasm"), "rust-bridge-demo"),
+  adapter: async host => rustCommand({
+    ...host,
+    processSync: host.process,
+    netSync: { connectSync: options => host.net.connectSync(options), connectUnixSync: path => host.net.connectUnixSync(path), errno: error => host.kit.net.errno(error) },
+  }, await host.artifacts.compile("bridge-demo.wasm"), "rust-bridge-demo"),
 });

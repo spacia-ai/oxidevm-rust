@@ -66,7 +66,9 @@ export function bridgeNet(context: WasiContext, net: NetSyncHost | undefined, me
       try { handle = connections.add({ socket, readClosed: false }); } catch (error) { socket.close(); throw error; }
       memory().setU32(out, handle);
     }),
-    net_read: (handle: number, buffer: number, length: number, timeoutMs: number, out: number) => socketCall(() => {
+    net_read: (handle: number, buffer: number, length: number, rawTimeout: number, out: number) => socketCall(() => {
+      // WebAssembly passes the u32 as an i32: u32::MAX ("no timeout") arrives as -1.
+      const timeoutMs = rawTimeout >>> 0;
       const connection = connections.get(handle), guest = memory();
       guest.check(buffer, length); guest.check(out, 4);
       if (timeoutMs !== NO_TIMEOUT && timeoutMs > MAX_TIMEOUT_MS) throw new WasiError(WASI.inval);

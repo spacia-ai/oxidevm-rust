@@ -46,6 +46,7 @@ export interface Streams {
 export function streams(options: StreamsOptions = {}): Streams {
   let input = options.stdin ?? new Uint8Array();
   const output: [Uint8Array[], Uint8Array[]] = [[], []], counts: number[] = [];
+  const programs = new Map<number, { readonly bytes: Uint8Array; offset: number }>();
   const stat = (mode: number): LinuxFileStat => ({ device: 0n, inode: 1n, links: 1n, mode, uid: 1000, gid: 1000, size: 0n, accessedNs: 0n, modifiedNs: 0n, changedNs: 0n });
   const host: RustCommandHost = {
     kit: { errno: { of: error => error instanceof FakeLinuxError ? error.errno : undefined } },
@@ -53,6 +54,8 @@ export function streams(options: StreamsOptions = {}): Streams {
     fs: {
       read(fd, count) {
         if (options.files?.owns(fd) === true) return options.files.read(fd, count);
+        const program = programs.get(fd);
+        if (program !== undefined) { const chunk = program.bytes.subarray(program.offset, program.offset + count); program.offset += chunk.byteLength; return chunk; }
         if (fd !== 0) throw new FakeLinuxError(9);
         const chunk = input.slice(0, count); input = input.slice(chunk.byteLength); return chunk;
       },
@@ -66,14 +69,13 @@ export function streams(options: StreamsOptions = {}): Streams {
       },
       fstat: fd => options.files?.owns(fd) === true ? options.files.stat(options.files.fileOf(fd).path) : stat(options.mode ?? 0o010600),
       seek: (fd, offset, origin = "start") => { if (options.files?.owns(fd) === true) return options.files.seek(fd, offset, origin); throw new FakeLinuxError(29); },
-      close: fd => { if (options.files?.owns(fd) === true) options.files.close(fd); },
+      close: fd => { if (options.files?.owns(fd) === true) options.files.close(fd); programs.delete(fd); },
       fsync: () => undefined,
       pipe: () => { throw new FakeLinuxError(24); },
-      readFile: (path, maxBytes = Number.MAX_SAFE_INTEGER) => {
+      open: path => {
         const bytes = options.programs?.[typeof path === "string" ? path : new TextDecoder().decode(path)];
         if (bytes === undefined) throw new FakeLinuxError(2);
-        if (bytes.byteLength > maxBytes) throw new FakeLinuxError(27);
-        return bytes;
+        const fd = 500 + programs.size; programs.set(fd, { bytes, offset: 0 }); return descriptor(fd);
       },
       ftruncate: (fd, length) => { if (options.files?.owns(fd) === true) { options.files.truncate(fd, BigInt(length)); return; } throw new FakeLinuxError(22); },
     },

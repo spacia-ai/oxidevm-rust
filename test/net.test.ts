@@ -61,6 +61,15 @@ describe("VM sockets through the bridge (OBL-TCP, OBL-UNIX; unit level)", () => 
   });
 });
 
+describe("read timeouts across the Wasm boundary", () => {
+  it("reads u32::MAX (an i32 -1 in JavaScript) as no timeout, never as a negative timeout", async () => {
+    const seen: unknown[] = [];
+    const network: NetSyncHost = { ...echoNetwork([]), connectSync: () => ({ write: () => undefined, closeWrite: () => undefined, close: () => undefined, read: (_max, options) => { seen.push(options); return new Uint8Array(); } }) };
+    expect((await run(["connect", "tcp", "h", "1"], network)).status).toBe(0);
+    expect(seen).toEqual([{}]);
+  });
+});
+
 describe("destination decoding", () => {
   const record = (...parts: readonly (number | string)[]) => {
     const out: number[] = [];

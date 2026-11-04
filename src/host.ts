@@ -59,7 +59,7 @@ export interface RandomHost { fill(bytes: Uint8Array): void }
 
 export interface WasiHost {
   readonly kit: { readonly errno: Pick<BaseHost["kit"]["errno"], "of"> };
-  readonly fs: Pick<Host<"files.sync">["fs"], "read" | "write" | "fstat" | "seek" | "close" | "fsync" | "ftruncate" | "pipe" | "readFile">;
+  readonly fs: Pick<Host<"files.sync">["fs"], "read" | "write" | "fstat" | "seek" | "close" | "fsync" | "ftruncate" | "pipe">;
   readonly at: AtFiles | undefined;
   readonly clock: ClockHost | undefined;
   readonly random: RandomHost | undefined;

@@ -63,7 +63,7 @@ export function preview1(host: WasiHost, memory: () => GuestMemory, stdio: Stdio
       const mask = preopen.readOnly ? ~MUTATING_RIGHTS : ALL_RIGHTS;
       table.place(3 + index, {
         kind: "preopen", host: fd, name: new TextEncoder().encode(preopen.guest), base: DIRECTORY_RIGHTS & mask, inheriting: ALL_RIGHTS & mask,
-        owned: true, confined: preopen.host !== "/",
+        owned: true, confined: preopen.host !== "/", readOnly: preopen.readOnly,
       });
     });
   }

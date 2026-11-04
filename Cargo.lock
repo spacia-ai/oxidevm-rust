@@ -16,6 +16,9 @@ version = "0.0.0"
 [[package]]
 name = "fixture-fsops"
 version = "0.0.0"
+dependencies = [
+ "oxidevm-bridge",
+]
 
 [[package]]
 name = "fixture-hello"

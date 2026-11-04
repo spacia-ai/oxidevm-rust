@@ -38,7 +38,7 @@ export function pathFunctions(context: WasiContext): Readonly<Record<string, Imp
       let kind: "file" | "directory";
       try { kind = (context.host.fs.fstat(opened).mode & 0o170000) === 0o040000 ? "directory" : "file"; }
       catch (error) { context.host.fs.close(opened); throw error; }
-      const guestFd = table.insert({ kind, host: opened, base, inheriting, owned: true, confined: dir.confined });
+      const guestFd = table.insert({ kind, host: opened, base, inheriting, owned: true, confined: dir.confined, readOnly: dir.kind !== "stream" && dir.readOnly });
       memory().setU32(out, guestFd);
     }),
     path_create_directory: (fd: number, pointer: number, length: number) => context.guarded(() => {

@@ -46,6 +46,33 @@ export function parseRunnerArguments(args: readonly string[]): RunnerArguments {
   return { kind: "run", program, args: rest[0] === "--" ? rest.slice(1) : rest, preopens: preopens.length === 0 ? [ROOT_PREOPEN] : preopens };
 }
 
+const O_RDONLY_CLOEXEC = 0o2000000, CHUNK = 64 * 1024;
+/** EFBIG, as Linux reports a file larger than a limit. */
+class TooLarge extends Error { readonly errno = 27; }
+
+/**
+ * Reads the whole program through one descriptor, in chunks, refusing it once it passes LIMITS.programBytes (the SDK's
+ * readFile is bounded below that). One open means one file: a rename or rewrite meanwhile cannot mix two programs.
+ */
+function readProgram(host: RustCommandHost, path: string): Uint8Array {
+  const fd = host.fs.open(path, O_RDONLY_CLOEXEC);
+  try {
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    for (;;) {
+      const chunk = host.fs.read(fd, CHUNK);
+      if (chunk.byteLength === 0) break;
+      size += chunk.byteLength;
+      if (size > LIMITS.programBytes) throw new TooLarge("program too large");
+      chunks.push(chunk);
+    }
+    const bytes = new Uint8Array(size);
+    let at = 0;
+    for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.byteLength; }
+    return bytes;
+  } finally { host.fs.close(fd); }
+}
+
 const beneath = (path: string, directory: string): boolean => directory === "/" || path === directory || path.startsWith(`${directory.replace(/\/+$/u, "")}/`);
 
 /**
@@ -67,9 +94,9 @@ export function runner(host: RustCommandHost): (io: CommandIO<"rust-bridge-demo"
       return host.fail(2, `${argv0}: the working directory ${cwd} is not beneath a granted --dir`);
     }
     let bytes: Uint8Array;
-    try { bytes = host.fs.readFile(parsed.program, LIMITS.programBytes + 1); }
+    try { bytes = readProgram(host, parsed.program); }
     catch (error) {
-      const errno = host.kit.errno.of(error);
+      const errno = error instanceof TooLarge ? error.errno : host.kit.errno.of(error);
       if (errno === undefined) throw error;
       return host.fail(errno === 27 ? 2 : 1, `${argv0}: cannot read ${parsed.program}: ${errno === 27 ? `larger than ${String(LIMITS.programBytes)} bytes` : `Linux errno ${String(errno)}`}`);
     }

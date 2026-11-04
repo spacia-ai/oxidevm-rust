@@ -1,6 +1,7 @@
 import type { FileDescriptor } from "@oxidevm/sdk/js-process";
 import { WASI } from "../errno.ts";
 import { WasiError } from "./context-error.ts";
+import { MUTATING_RIGHTS } from "./rights.ts";
 
 /**
  * One guest descriptor. `host` is the Linux descriptor it names; `owned` says whether closing the guest descriptor
@@ -10,8 +11,8 @@ import { WasiError } from "./context-error.ts";
  */
 export type Entry =
   | { readonly kind: "stream"; readonly host: FileDescriptor; readonly terminal: boolean; base: bigint; inheriting: bigint; readonly owned: false; readonly confined: false }
-  | { readonly kind: "preopen"; readonly host: FileDescriptor; readonly name: Uint8Array; base: bigint; inheriting: bigint; readonly owned: true; readonly confined: boolean }
-  | { readonly kind: "file" | "directory"; readonly host: FileDescriptor; base: bigint; inheriting: bigint; readonly owned: true; readonly confined: boolean };
+  | { readonly kind: "preopen"; readonly host: FileDescriptor; readonly name: Uint8Array; base: bigint; inheriting: bigint; readonly owned: true; readonly confined: boolean; readonly readOnly: boolean }
+  | { readonly kind: "file" | "directory"; readonly host: FileDescriptor; base: bigint; inheriting: bigint; readonly owned: true; readonly confined: boolean; readonly readOnly: boolean };
 
 /**
  * The guest descriptor table of one run: at most `limit` entries (standard streams and preopens included). A guest
@@ -38,11 +39,16 @@ export class DescriptorTable {
     return entry;
   }
 
-  /** The entry, checked to hold every right in `needed` (NOTCAPABLE otherwise). */
+  /**
+   * The entry, checked to hold every right in `needed`. A mutation refused because the entry descends from a read-only
+   * grant is ROFS, as a read-only mount answers on Linux; any other missing right is NOTCAPABLE.
+   */
   require(fd: number, needed: bigint): Entry {
     const entry = this.get(fd);
-    if ((entry.base & needed) !== needed) throw new WasiError(WASI.notcapable);
-    return entry;
+    const missing = needed & ~entry.base;
+    if (missing === 0n) return entry;
+    const readOnly = entry.kind !== "stream" && entry.readOnly && (missing & MUTATING_RIGHTS) === missing;
+    throw new WasiError(readOnly ? WASI.rofs : WASI.notcapable);
   }
 
   /** Places an entry at the lowest free number; MFILE (after closing an owned Linux descriptor) when the table is full. */

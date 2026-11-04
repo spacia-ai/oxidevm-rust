@@ -17,12 +17,12 @@ export const scenarios: readonly Scenario[] = [
       const started = performance.now(), other = await sh(vm, "echo other"), otherMs = Math.round(performance.now() - started);
       return { slept: await sleeping, other, otherMs };
     });
-    expect("sleep", value.slept.stdout === "fsops: ok slept 2000ms\n" && value.other.stdout === "other\n" && value.otherMs < 1500, value);
+    expect("sleep", value.slept.stdout === "sleep: ok slept 2000ms\n" && value.other.stdout === "other\n" && value.otherMs < 1500, value);
     return `slept 2000 ms; another process answered in ${String(value.otherMs)} ms; page max gap ${String(gapMs)} ms`;
   }],
   ["kill -9 during a sleep ends the run; the next command runs (OBL-WAIT-KILL)", async vm => {
     const run = await sh(vm, "rust-wasi /workspace/t/fixture-fsops.wasm sleep 600000 & m=$!; sleep 1; kill -9 $m; wait $m; echo status=$?; rust-wasi /workspace/t/fixture-fsops.wasm cwd");
-    expect("kill", run.stdout === "status=137\nfsops: ok /workspace/t\n", run);
+    expect("kill", run.stdout === "status=137\ncwd: ok /workspace/t\n", run);
     return "137, then the next run works";
   }],
 ];

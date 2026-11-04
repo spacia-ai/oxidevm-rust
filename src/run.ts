@@ -12,6 +12,8 @@ import { encodeLaunch, LaunchError, preview1, ProcExit, type Preopen } from "./w
 
 /** The host members a Rust program run uses: its standard streams, the kit, failure reporting and the Linux ports. */
 export type RustCommandHost = Pick<BaseHost, "fail"> & WasiHost & {
+  /** Only the rust-wasi runner opens a path directly: the program file it reads once. */
+  readonly fs: Pick<Host<"files.sync">["fs"], "open">;
   readonly process: Pick<Host<"process.info">["process"], "info">;
   /** Synchronous native runs (SDK capability "process.sync"); without it command_run answers NOSYS. */
   readonly processSync: ProcessSyncHost | undefined;
