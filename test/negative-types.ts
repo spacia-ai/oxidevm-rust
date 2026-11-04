@@ -1,7 +1,7 @@
 // Compile-time regressions (OBL-STRICT): `tsc -p test` must report each line below as an error. If a change makes one of
 // them type-check, the unused @ts-expect-error fails the build, so a widened boundary cannot slip in unnoticed.
 import type { RustCommandHost } from "../src/command.ts";
-import type { Preview1Host } from "../src/wasi/preview1.ts";
+import type { WasiHost } from "../src/host.ts";
 import { GuestMemory } from "../src/memory.ts";
 
 declare const host: RustCommandHost;
@@ -16,7 +16,7 @@ export function negatives(): void {
   host.fs.read(3, 1);
   // @ts-expect-error -- untrusted values must be decoded before use as guest memory.
   new GuestMemory(untrusted);
-  const preview: Preview1Host = host;
-  // @ts-expect-error -- the Preview1 imports get only read/write/fstat of the Linux file facade.
+  const preview: WasiHost = host;
+  // @ts-expect-error -- the WASI layer opens files only descriptor-relatively, through files.at; never by absolute path.
   void preview.fs.open;
 }

@@ -4,10 +4,11 @@ import { mapGuestExit } from "./exit.ts";
 import { GuestMemory } from "./memory.ts";
 import { admitProgram, AdmissionError } from "./wasi/admission.ts";
 import { BRIDGE_NAMESPACE, PREVIEW1_NAMESPACE } from "./wasi/imports.ts";
-import { encodeLaunch, LaunchError, preview1, ProcExit, type Preview1Host } from "./wasi/preview1.ts";
+import type { WasiHost } from "./host.ts";
+import { encodeLaunch, LaunchError, preview1, ProcExit, type Preopen } from "./wasi/preview1.ts";
 
 /** The host members a Rust command uses: its standard streams, the kit, failure reporting and Linux files. */
-export type RustCommandHost = Pick<BaseHost, "fail"> & Preview1Host & { readonly process: Pick<Host<"process.info">["process"], "info"> };
+export type RustCommandHost = Pick<BaseHost, "fail"> & WasiHost & { readonly process: Pick<Host<"process.info">["process"], "info"> };
 
 /** The commands this module declares (module.ts `commands`). */
 export type RustCommandName = "rust-bridge-demo";
@@ -19,7 +20,7 @@ const BRIDGE_FUNCTIONS: ReadonlySet<string> = new Set(PROCESS_FUNCTIONS);
  * Runs one compiled wasm32-wasip1 Rust command per invocation: the program is admitted once, and every run gets a fresh
  * instance (memory, globals and table), so nothing a run leaves behind reaches the next.
  */
-export function rustCommand(host: RustCommandHost, program: WebAssembly.Module, defaultName: RustCommandName): CommandHooks<RustCommandName> {
+export function rustCommand(host: RustCommandHost, program: WebAssembly.Module, defaultName: RustCommandName, preopens?: readonly Preopen[]): CommandHooks<RustCommandName> {
   admitProgram(program, BRIDGE_FUNCTIONS);
   return {
     async main(io) {
@@ -35,8 +36,9 @@ export function rustCommand(host: RustCommandHost, program: WebAssembly.Module, 
       // Bound once the instance exists; an import called before that (a start function) finds no memory and fails.
       const bound: { memory?: GuestMemory } = {};
       const memory = (): GuestMemory => { if (bound.memory === undefined) throw new AdmissionError("memory is not bound yet"); return bound.memory; };
+      const wasi = preview1(host, memory, stdio, launch, io.terminals, preopens);
       const instance = new WebAssembly.Instance(program, {
-        [PREVIEW1_NAMESPACE]: preview1(host, memory, stdio, launch, io.terminals),
+        [PREVIEW1_NAMESPACE]: wasi.imports,
         [BRIDGE_NAMESPACE]: bridgeProcess(memory, identity),
       });
       const exported = instance.exports["memory"], start = instance.exports["_start"];
@@ -49,6 +51,8 @@ export function rustCommand(host: RustCommandHost, program: WebAssembly.Module, 
         if (!(error instanceof ProcExit)) throw error;
         const mapped = mapGuestExit(error.code, argv0);
         return mapped.diagnostic === undefined ? mapped.status : host.fail(mapped.status, mapped.diagnostic);
+      } finally {
+        wasi.table.closeAll();
       }
     },
   };

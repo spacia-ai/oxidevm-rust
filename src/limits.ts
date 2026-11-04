@@ -15,6 +15,10 @@ export const LIMITS = {
   memoryPages: 4096,
   /** Entries of the one funcref table. */
   tableEntries: 65536,
+  /** Bytes of a guest path, without the terminator Linux adds. */
+  pathBytes: 4095,
+  /** Guest descriptors per run, standard streams and preopens included. */
+  descriptors: 256,
   /** Bytes of a local program file (rust-wasi runner). */
   programBytes: 32 * 1024 * 1024,
 } as const;

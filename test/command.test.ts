@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import type { CommandIO } from "@oxidevm/sdk/wasm";
 import { rustCommand, type RustCommandName } from "../src/command.ts";
+import { FakeFiles } from "./support/files.ts";
 import { descriptor, streams, type StreamsOptions } from "./support/streams.ts";
 
 /** The pinned Rust program (the hello fixture built for wasm32-wasip1), and the binary-echo fixture when it is built. */
@@ -97,7 +98,11 @@ describe("identity, directory and terminals (OBL-PID, OBL-CONTEXT, OBL-TTY; unit
   });
 
   it("restores the caller's directory for std before main", async () => {
-    expect((await identity()).parsed).toMatchObject({ bridgeCwd: "/workspace", stdCwd: "/workspace" });
+    expect((await identity({ files: new FakeFiles({}, ["/workspace"]) })).parsed).toMatchObject({ bridgeCwd: "/workspace", stdCwd: "/workspace" });
+  });
+
+  it("leaves std at / without files.at, while the bridge still reports the real directory", async () => {
+    expect((await identity()).parsed).toMatchObject({ bridgeCwd: "/workspace", stdCwd: "/" });
   });
 
   it("takes terminal-ness from Linux, so /dev/null (a character device) is not a terminal", async () => {
