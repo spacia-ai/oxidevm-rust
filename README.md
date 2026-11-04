@@ -4,8 +4,17 @@ An OxideVM module for Rust programs compiled to WebAssembly (`wasm32-wasip1`): e
 VM, with the caller's arguments, environment and standard streams, the VM's live files, and, through a small bridge
 crate, native Linux programs and VM sockets.
 
-**Status: under development, not released.** It needs OxideVM SDK 0.0.14 or later. There is no module release to
-install yet.
+Experimental: the first release, 0.1.0, needs OxideVM SDK and CLI 0.0.14 or later.
+
+## Use it
+
+```sh
+oxidevm wasm add github:spacia-ai/oxidevm-rust@v0.1.0
+```
+
+The command shows what the module declares and asks before it installs anything. A module is code that runs in a worker of
+your page with that authority, so review it as you would a dependency. It needs a self-hosted runtime on a cross-origin
+isolated page. After it is added, `rust-wasi` and `rust-bridge-demo` are commands in the VM's terminal.
 
 This module is a thin command layer. The WASI Preview1 implementation is the SDK's
 [`host.kit.wasi`](https://oxidevm.dev/docs/reference/wasi-kit/), and the Rust crate programs link is
