@@ -1,4 +1,4 @@
-// Runs cargo for this workspace. Until oxidevm-bridge is published to crates.io, OXIDEVM_BRIDGE_PATH names a checkout
+// Runs cargo for this workspace. oxidevm-bridge comes from crates.io; to try an unreleased change, OXIDEVM_BRIDGE_PATH names a checkout
 // of it (<oxidevm-sdk>/crates/oxidevm-bridge) and this wrapper patches it in for every cargo command. The --config
 // goes after the subcommand so cargo-clippy and other external subcommands pass it on to the cargo they run.
 //

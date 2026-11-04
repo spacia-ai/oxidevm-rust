@@ -10,7 +10,7 @@ published yet. There is no release to install.
 This module is a thin command layer. The WASI Preview1 implementation is the SDK's
 [`host.kit.wasi`](https://oxidevm.dev/docs/reference/wasi-kit/), and the Rust crate programs link is
 [`oxidevm-bridge`](https://oxidevm.dev/docs/reference/wasi-bridge/), which lives in the SDK repository
-(`crates/oxidevm-bridge`) and goes to crates.io with the SDK release. Any module can run Rust programs the same way;
+(`crates/oxidevm-bridge`) and is published on [crates.io](https://crates.io/crates/oxidevm-bridge). Any module can run Rust programs the same way;
 see the guide [Run Rust programs](https://oxidevm.dev/docs/guides/rust-programs/).
 
 ## Commands
@@ -34,15 +34,15 @@ outside the VM. The module itself makes no network requests.
 
 ## Develop
 
-Until `oxidevm-bridge` is on crates.io, Cargo needs a checkout of it. `OXIDEVM_BRIDGE_PATH` names one, and
-`scripts/cargo.ts` and `pnpm run build:rust` patch it in:
+`oxidevm-bridge` comes from crates.io. To try an unreleased change to it, set
+`OXIDEVM_BRIDGE_PATH=<oxidevm-sdk checkout>/crates/oxidevm-bridge`; `scripts/cargo.ts` and `pnpm run build:rust` then
+use that checkout.
 
 ```sh
-export OXIDEVM_BRIDGE_PATH=<oxidevm-sdk checkout>/crates/oxidevm-bridge
 rustup target add wasm32-wasip1
 pnpm install --frozen-lockfile
 pnpm run build:rust
-node scripts/cargo.ts clippy --workspace --all-targets --target wasm32-wasip1 -- -D warnings
+cargo clippy --locked --workspace --all-targets --target wasm32-wasip1 -- -D warnings
 pnpm run inspect:fixtures
 pnpm run check
 pnpm test

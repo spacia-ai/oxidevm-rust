@@ -46,3 +46,5 @@ version = "0.0.0"
 [[package]]
 name = "oxidevm-bridge"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6771aaa43c025f9ba1e8edb5a91f6f025f3f1b6726abf82681868416335bf455"

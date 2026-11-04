@@ -2,8 +2,8 @@
 resolver = "3"
 members = ["examples/*", "test/fixtures/rust/*"]
 
-# The bridge crate lives with the SDK (spacia-ai/oxidevm-sdk, crates/oxidevm-bridge) and is published to crates.io.
-# Until it is, scripts/cargo.ts points Cargo at a checkout of it: OXIDEVM_BRIDGE_PATH=<sdk>/crates/oxidevm-bridge.
+# The bridge crate is developed with the SDK (crates/oxidevm-bridge) and published to crates.io. To try an unreleased
+# change, OXIDEVM_BRIDGE_PATH=<sdk>/crates/oxidevm-bridge makes scripts/cargo.ts and build:rust use that checkout.
 [workspace.dependencies]
 oxidevm-bridge = "0.1"
 
