@@ -1,7 +1,6 @@
 [package]
-name = "oxidevm-bridge"
+name = "fixture-fsops"
 version = "0.0.0"
-description = "Native Linux processes, sockets and process identity for Rust programs run by the OxideVM oxidevm-rust module"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -9,3 +8,6 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+oxidevm-bridge = { workspace = true }

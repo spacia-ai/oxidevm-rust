@@ -6,8 +6,9 @@ describe("module definition", () => {
     expect(definition.manifest.id).toBe("oxidevm-rust");
     expect(definition.manifest.abi).toBe("wasi");
     expect(definition.manifest.process.kind).toBe("command");
-    expect(definition.manifest.commands).toEqual(["rust-bridge-demo"]);
-    // Files and the process's own identity; native processes (SL-06) and networking (SL-07) add theirs when they land.
-    expect(definition.manifest.requires.host).toEqual(["files.sync", "process.info"]);
+    expect(definition.manifest.commands).toEqual(["rust-bridge-demo", "rust-wasi"]);
+    // Files (descriptor-relative), the VM clock and entropy, the process's identity, synchronous native children and
+    // VM-only network reach: exactly what the WASI adapter and the bridge use.
+    expect(definition.manifest.requires.host).toEqual(["files.sync", "files.at", "clock", "random", "process.info", "process.sync", "net.vm"]);
   });
 });

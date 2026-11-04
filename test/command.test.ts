@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import type { CommandIO } from "@oxidevm/sdk/wasm";
 import { rustCommand, type RustCommandName } from "../src/command.ts";
+import { FakeFiles } from "./support/files.ts";
 import { descriptor, streams, type StreamsOptions } from "./support/streams.ts";
 
 /** The pinned Rust program (the hello fixture built for wasm32-wasip1), and the binary-echo fixture when it is built. */
@@ -18,7 +19,7 @@ function io(args: readonly string[], argv0?: string, env: Readonly<Record<string
 }
 async function run(program: WebAssembly.Module, args: readonly string[], argv0?: string, options: StreamsOptions & { readonly terminal?: boolean } = {}) {
   const fake = streams(options);
-  const status = await rustCommand(fake.host, program, "rust-bridge-demo").main(io(args, argv0, {}, options.terminal ?? false));
+  const status = await rustCommand(fake.host, program).main(io(args, argv0, {}, options.terminal ?? false));
   return { status, stdout: new TextDecoder().decode(fake.stdout()), stdoutBytes: fake.stdout(), stderr: fake.stderr(), writes: fake.writes() };
 }
 
@@ -52,7 +53,7 @@ describe("the pinned Rust command (OBL-TEMPLATE, OBL-ARGS)", () => {
 
   it("gives every run a fresh instance (OBL-FRESH-STATE, unit level)", async () => {
     const first = streams();
-    const command = rustCommand(first.host, hello, "rust-bridge-demo");
+    const command = rustCommand(first.host, hello);
     expect(await command.main(io(["one"]))).toBe(0);
     expect(await command.main(io(["two"]))).toBe(0);
     expect(new TextDecoder().decode(first.stdout())).toBe(`hello from rust wasm: ["rust-bridge-demo", "one"]\nhello from rust wasm: ["rust-bridge-demo", "two"]\n`);
@@ -97,7 +98,11 @@ describe("identity, directory and terminals (OBL-PID, OBL-CONTEXT, OBL-TTY; unit
   });
 
   it("restores the caller's directory for std before main", async () => {
-    expect((await identity()).parsed).toMatchObject({ bridgeCwd: "/workspace", stdCwd: "/workspace" });
+    expect((await identity({ files: new FakeFiles({}, ["/workspace"]) })).parsed).toMatchObject({ bridgeCwd: "/workspace", stdCwd: "/workspace" });
+  });
+
+  it("leaves std at / without files.at, while the bridge still reports the real directory", async () => {
+    expect((await identity()).parsed).toMatchObject({ bridgeCwd: "/workspace", stdCwd: "/" });
   });
 
   it("takes terminal-ness from Linux, so /dev/null (a character device) is not a terminal", async () => {

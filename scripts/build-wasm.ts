@@ -7,19 +7,27 @@ import { execFileSync } from "node:child_process";
 import { copyFile, readFile, readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { bridgePatch } from "./cargo.ts";
 
 const root = resolve(import.meta.dirname, "..");
 const run = (command: string, args: readonly string[]): string => execFileSync(command, args, { cwd: root, encoding: "utf8" }).trim();
 const sysroot = run("rustc", ["--print", "sysroot"]);
 const commit = /commit-hash: ([0-9a-f]{40})/u.exec(run("rustc", ["-vV"]))?.[1];
 if (commit === undefined) throw new Error("rustc -vV reported no commit hash");
+function bridgeRemap(): readonly string[] {
+  const path = process.env["OXIDEVM_BRIDGE_PATH"];
+  return path === undefined || path === "" ? [] : [`--remap-path-prefix=${resolve(path)}=/oxidevm-bridge`];
+}
 const flags = [
   "-C", "link-arg=--max-memory=268435456", "-C", "link-arg=-zstack-size=1048576",
   `--remap-path-prefix=${root}=/oxidevm-rust`,
   `--remap-path-prefix=${join(sysroot, "lib/rustlib/src/rust")}=/rustc/${commit}`,
   `--remap-path-prefix=${join(homedir(), ".cargo")}=/cargo`,
+  ...bridgeRemap(),
 ];
-execFileSync("cargo", ["build", "--locked", "--release", "--target", "wasm32-wasip1"], {
+// The lock records the published crate; a local OXIDEVM_BRIDGE_PATH patch builds without --locked.
+const locked = bridgePatch().length === 0 ? ["--locked"] : [];
+execFileSync("cargo", ["build", ...bridgePatch(), ...locked, "--release", "--target", "wasm32-wasip1"], {
   cwd: root, stdio: "inherit", env: { ...process.env, CARGO_ENCODED_RUSTFLAGS: flags.join("\x1f") },
 });
 const built = join(root, "target/wasm32-wasip1/release");

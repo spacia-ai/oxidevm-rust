@@ -1,55 +1,32 @@
-import type { BaseHost, CommandHooks, Host, Stdio } from "@oxidevm/sdk/wasm";
-import { bridgeProcess, PROCESS_FUNCTIONS, type Identity } from "./bridge/process.ts";
-import { mapGuestExit } from "./exit.ts";
-import { GuestMemory } from "./memory.ts";
-import { admitProgram, AdmissionError } from "./wasi/admission.ts";
-import { BRIDGE_NAMESPACE, PREVIEW1_NAMESPACE } from "./wasi/imports.ts";
-import { encodeLaunch, LaunchError, preview1, ProcExit, type Preview1Host } from "./wasi/preview1.ts";
-
-/** The host members a Rust command uses: its standard streams, the kit, failure reporting and Linux files. */
-export type RustCommandHost = Pick<BaseHost, "fail"> & Preview1Host & { readonly process: Pick<Host<"process.info">["process"], "info"> };
-
-/** The commands this module declares (module.ts `commands`). */
-export type RustCommandName = "rust-bridge-demo";
-
-/** The bridge functions this release serves (oxidevm_bridge_v1); native processes and sockets follow. */
-const BRIDGE_FUNCTIONS: ReadonlySet<string> = new Set(PROCESS_FUNCTIONS);
+import type { LinuxSyncFiles } from "@oxidevm/sdk/js-process";
+import type { CommandHooks, Kit, WasiRunHost } from "@oxidevm/sdk/wasm";
+import { runner } from "./runner.ts";
 
 /**
- * Runs one compiled wasm32-wasip1 Rust command per invocation: the program is admitted once, and every run gets a fresh
- * instance (memory, globals and table), so nothing a run leaves behind reaches the next.
+ * What the module's commands use: the SDK's WASI runner (`host.kit.wasi`) and the host members it serves programs
+ * from, plus `fs.open` for the program files `rust-wasi` reads.
  */
-export function rustCommand(host: RustCommandHost, program: WebAssembly.Module, defaultName: RustCommandName): CommandHooks<RustCommandName> {
-  admitProgram(program, BRIDGE_FUNCTIONS);
+export type RustHost = WasiRunHost & {
+  readonly kit: Pick<Kit, "wasi">;
+  readonly fs: Pick<LinuxSyncFiles, "open">;
+};
+
+/** The commands this module declares (module.ts `commands`). */
+export type RustCommandName = "rust-bridge-demo" | "rust-wasi";
+
+/**
+ * `rust-bridge-demo` runs the pinned demonstration program, `rust-wasi` a program file from the VM's filesystem. An
+ * application start (`spawnModule`) runs the demonstration program. Each run gets fresh state; only compiled programs
+ * are shared.
+ */
+export function rustCommand(host: RustHost, demo: WebAssembly.Module): CommandHooks<RustCommandName> {
+  host.kit.wasi.admit(demo);
+  const runWasi = runner(host);
   return {
-    async main(io) {
-      const argv0 = io.invocation.kind === "command" ? io.invocation.argv0 : defaultName;
-      let launch;
-      try { launch = encodeLaunch([argv0, ...io.args], io.env); }
-      catch (error) { if (error instanceof LaunchError) return host.fail(2, `${argv0}: ${error.message}`); throw error; }
-      const stdio: Stdio = { stdin: io.stdin, stdout: io.stdout, stderr: io.stderr };
-      // The process's identity does not change while it runs, except its parent on reparenting: read it once, before
-      // the program starts (the program cannot await later). The directory is the caller's, as the runner reports it.
-      const info = await host.process.info();
-      const identity: Identity = { pid: info.pid, parent: info.parentPid ?? 0, uid: info.uid, gid: info.gid, cwd: io.cwd };
-      // Bound once the instance exists; an import called before that (a start function) finds no memory and fails.
-      const bound: { memory?: GuestMemory } = {};
-      const memory = (): GuestMemory => { if (bound.memory === undefined) throw new AdmissionError("memory is not bound yet"); return bound.memory; };
-      const instance = new WebAssembly.Instance(program, {
-        [PREVIEW1_NAMESPACE]: preview1(host, memory, stdio, launch, io.terminals),
-        [BRIDGE_NAMESPACE]: bridgeProcess(memory, identity),
-      });
-      const exported = instance.exports["memory"], start = instance.exports["_start"];
-      if (!(exported instanceof WebAssembly.Memory) || typeof start !== "function") throw new AdmissionError("the program lost its memory or _start export");
-      bound.memory = new GuestMemory(exported);
-      try {
-        Reflect.apply(start, undefined, []);
-        return 0;
-      } catch (error) {
-        if (!(error instanceof ProcExit)) throw error;
-        const mapped = mapGuestExit(error.code, argv0);
-        return mapped.diagnostic === undefined ? mapped.status : host.fail(mapped.status, mapped.diagnostic);
-      }
+    main(io) {
+      if (io.invocation.kind === "command" && io.invocation.name === "rust-wasi") return runWasi(io);
+      const argv0 = io.invocation.kind === "command" ? io.invocation.argv0 : "rust-bridge-demo";
+      return host.kit.wasi.run(host, demo, io, { argv: [argv0, ...io.args] });
     },
   };
 }
