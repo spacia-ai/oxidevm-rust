@@ -9,7 +9,7 @@ export default defineModule({
     // The pinned demonstration program, built from examples/bridge-demo with the pinned toolchain (scripts/build-wasm.ts).
     artifacts: [{ name: "bridge-demo.wasm", from: "upstream/bridge-demo.wasm" }],
     process: { kind: "command" },
-    commands: ["rust-bridge-demo"],
+    commands: ["rust-bridge-demo", "rust-wasi"],
     requires: { host: ["files.sync", "process.info"] },
     license: { spdx: "Apache-2.0" },
   },

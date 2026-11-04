@@ -25,6 +25,8 @@ export interface StreamsOptions {
   readonly clock?: ClockHost;
   readonly processSync?: ProcessSyncHost;
   readonly netSync?: NetSyncHost;
+  /** Files `readFile` serves (the runner's program files). */
+  readonly programs?: Readonly<Record<string, Uint8Array>>;
   readonly random?: RandomHost;
   /** The mode fstat reports for every stream (default a FIFO). */
   readonly mode?: number;
@@ -67,6 +69,12 @@ export function streams(options: StreamsOptions = {}): Streams {
       close: fd => { if (options.files?.owns(fd) === true) options.files.close(fd); },
       fsync: () => undefined,
       pipe: () => { throw new FakeLinuxError(24); },
+      readFile: (path, maxBytes = Number.MAX_SAFE_INTEGER) => {
+        const bytes = options.programs?.[typeof path === "string" ? path : new TextDecoder().decode(path)];
+        if (bytes === undefined) throw new FakeLinuxError(2);
+        if (bytes.byteLength > maxBytes) throw new FakeLinuxError(27);
+        return bytes;
+      },
       ftruncate: (fd, length) => { if (options.files?.owns(fd) === true) { options.files.truncate(fd, BigInt(length)); return; } throw new FakeLinuxError(22); },
     },
     at: options.files?.at,

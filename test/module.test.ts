@@ -6,7 +6,7 @@ describe("module definition", () => {
     expect(definition.manifest.id).toBe("oxidevm-rust");
     expect(definition.manifest.abi).toBe("wasi");
     expect(definition.manifest.process.kind).toBe("command");
-    expect(definition.manifest.commands).toEqual(["rust-bridge-demo"]);
+    expect(definition.manifest.commands).toEqual(["rust-bridge-demo", "rust-wasi"]);
     // Files and the process's own identity; native processes (SL-06) and networking (SL-07) add theirs when they land.
     expect(definition.manifest.requires.host).toEqual(["files.sync", "process.info"]);
   });
