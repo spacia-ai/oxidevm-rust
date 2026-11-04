@@ -4,7 +4,7 @@ import { rustCommand } from "./src/command.ts";
 export default defineModule({
   manifest: {
     id: "oxidevm-rust",
-    version: "0.0.0",
+    version: "0.1.0",
     abi: "wasi",
     // The pinned demonstration program, built from examples/bridge-demo with the pinned toolchain (scripts/build-wasm.ts).
     artifacts: [{ name: "bridge-demo.wasm", from: "upstream/bridge-demo.wasm" }],
