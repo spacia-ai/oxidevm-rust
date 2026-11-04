@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:conformance": "oxidevm wasm build && oxidevm wasm test --arg=--exit --arg=0",
     "build:rust": "node scripts/build-wasm.ts",
-    "inspect:fixtures": "node scripts/inspect-fixtures.ts"
+    "inspect:fixtures": "node scripts/inspect-fixtures.ts",
+    "test:browser": "node test/browser/run.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -21,6 +22,7 @@
     "playwright": "1.61.1",
     "typescript": "6.0.3",
     "typescript-eslint": "8.65.0",
+    "vite": "7.3.6",
     "vitest": "3.2.4"
   }
 }

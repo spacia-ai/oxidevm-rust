@@ -3,6 +3,13 @@
 version = 4
 
 [[package]]
+name = "bridge-demo"
+version = "0.0.0"
+dependencies = [
+ "oxidevm-bridge",
+]
+
+[[package]]
 name = "fixture-binary-echo"
 version = "0.0.0"
 
@@ -11,9 +18,20 @@ name = "fixture-hello"
 version = "0.0.0"
 
 [[package]]
+name = "fixture-identity"
+version = "0.0.0"
+dependencies = [
+ "oxidevm-bridge",
+]
+
+[[package]]
 name = "fixture-import-probe"
 version = "0.0.0"
 
 [[package]]
 name = "fixture-seam"
+version = "0.0.0"
+
+[[package]]
+name = "oxidevm-bridge"
 version = "0.0.0"

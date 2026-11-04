@@ -1,4 +1,4 @@
-/** The 46 functions of WASI Preview1 (wasi_snapshot_preview1.witx); docs/wasi-preview1-imports.json gives each a disposition. */
+/** The 46 functions of WASI Preview1 (wasi_snapshot_preview1.witx); test/wasi-preview1-imports.json gives each a disposition. */
 export const PREVIEW1_NAMESPACE = "wasi_snapshot_preview1";
 export const PREVIEW1_IMPORTS = [
   "args_get", "args_sizes_get", "environ_get", "environ_sizes_get",

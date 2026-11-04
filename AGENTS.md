@@ -3,7 +3,8 @@
 This repository is an OxideVM WebAssembly module that runs Rust programs compiled for `wasm32-wasip1` as real Linux
 processes of a VM. `module.ts` holds the whole definition: a literal `manifest` and the `adapter`.
 
-- Edit `module.ts`, `src/`, `test/`, `docs/`, `scripts/` and `test/fixtures/rust/`. Never edit `dist/` or `target/`.
+- Edit `module.ts`, `src/`, `test/`, `scripts/`, `crates/`, `examples/` and `test/fixtures/rust/`. Never edit `dist/` or `target/`.
+- `docs/` is the maintainer's local design material: it is ignored by Git and never committed or pushed.
 - Keep the manifest a literal, and declare in `requires.host` only what the adapter uses.
 - Import types from `@oxidevm/sdk/wasm` with `import type`; the only value import is `defineModule`. Never import the
   SDK's private `runtime/` paths.
@@ -11,7 +12,7 @@ processes of a VM. `module.ts` holds the whole definition: a literal `manifest` 
   everything else from outside as untrusted and check it before any host side effect.
 - Linux semantics belong to the engine: the adapter never resolves, checks or rewrites paths itself, never keeps a copy
   of files, and never imitates a process or socket.
-- The limits in `docs/contract.md`, the ABI in `docs/abi-v1.md` and the dispositions in `docs/wasi-preview1-imports.json`
+- The limits in `src/limits.ts`, the `oxidevm_bridge_v1` imports and the dispositions in `test/wasi-preview1-imports.json`
   are contracts: change them only together with their boundary tests.
 - Rust: edition 2024, Rust 1.99.1 (`rust-toolchain.toml`), `unsafe_code = "deny"` except at the one import boundary of
   the bridge crate, no `unwrap`/`expect` in library code.

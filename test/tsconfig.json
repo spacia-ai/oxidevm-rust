@@ -1,5 +1,6 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": { "types": ["node"] },
-  "include": ["./**/*.ts", "../module.ts", "../src/**/*.ts"]
+  "include": ["./**/*.ts", "../module.ts", "../src/**/*.ts"],
+  "exclude": ["./browser/page", "./browser/suites"]
 }

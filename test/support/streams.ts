@@ -1,19 +1,25 @@
 // A typed stand-in for the host members the Rust adapter uses: three standard streams with an optional pipe capacity
 // (so writes can be partial), Linux errors carried as `errno`, and `fail` writing its message to standard error. It
 // models only what the adapter calls; every other member is absent, so the type checker rejects new uses.
-import type { FileDescriptor, LinuxFileStat } from "@oxidevm/sdk/js-process";
+import type { FileDescriptor, LinuxFileStat, LinuxProcessInfo } from "@oxidevm/sdk/js-process";
+
+type ProcessId = LinuxProcessInfo["pid"];
 import type { RustCommandHost } from "../../src/command.ts";
 
 export class FakeLinuxError extends Error {
   constructor(readonly errno: number) { super(`errno ${String(errno)}`); }
 }
 function isDescriptor(value: number): value is FileDescriptor { return Number.isInteger(value) && value >= 0; }
+function isProcessId(value: number): value is ProcessId { return Number.isInteger(value) && value > 0; }
+function descriptorPid(value: number): ProcessId { if (!isProcessId(value)) throw new RangeError(`not a pid: ${String(value)}`); return value; }
 export function descriptor(value: number): FileDescriptor {
   if (!isDescriptor(value)) throw new RangeError(`not a descriptor: ${String(value)}`);
   return value;
 }
 
 export interface StreamsOptions {
+  /** The mode fstat reports for every stream (default a FIFO). */
+  readonly mode?: number;
   readonly stdin?: Uint8Array;
   /** The most bytes one write to stdout accepts; a smaller value forces partial writes. */
   readonly stdoutCapacity?: number;
@@ -46,8 +52,11 @@ export function streams(options: StreamsOptions = {}): Streams {
         output[fd - 1]?.push(accepted.slice()); counts.push(accepted.byteLength);
         return accepted.byteLength;
       },
-      fstat: () => stat(0o010600),
+      fstat: () => stat(options.mode ?? 0o010600),
+      stat: path => { if (path === "/" || path === "/workspace") return stat(0o040755); throw new FakeLinuxError(2); },
+      lstat: path => { if (path === "/" || path === "/workspace") return stat(0o040755); throw new FakeLinuxError(2); },
     },
+    process: { info: () => Promise.resolve({ pid: descriptorPid(42), parentPid: descriptorPid(7), uid: 1000, gid: 1000, cwd: "/workspace", args: [], environment: [], terminal: null }) },
   };
   const join = (parts: readonly Uint8Array[]): Uint8Array => {
     const all = new Uint8Array(parts.reduce((total, part) => total + part.byteLength, 0)); let at = 0;

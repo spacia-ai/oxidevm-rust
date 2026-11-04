@@ -8,8 +8,8 @@ declare const host: RustCommandHost;
 declare const untrusted: unknown;
 
 export function negatives(): void {
-  // @ts-expect-error -- the command host has no process member until the manifest declares process capabilities (SL-06).
-  void host.process;
+  // @ts-expect-error -- the process member has `info` only: spawning needs process.spawn, which the manifest does not declare.
+  void host.process.spawn;
   // @ts-expect-error -- nor a network member: the base module is not given any reach (SL-07 adds net.vm).
   void host.net;
   // @ts-expect-error -- a plain number is not a Linux descriptor; descriptors come from the host.

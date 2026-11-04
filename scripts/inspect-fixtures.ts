@@ -1,6 +1,6 @@
 // Import census for the Rust fixtures (SL-01, OBL-CONTRACT): for each built .wasm it records every import, the exports,
 // the defined memory and table limits and whether a start section exists, and compares the WASI imports with the
-// Preview1 disposition table in docs/wasi-preview1-imports.json. Exits 1 when a fixture imports a name the table does
+// Preview1 disposition table in test/wasi-preview1-imports.json. Exits 1 when a fixture imports a name the table does
 // not classify, or when its memory or table shape falls outside the frozen profile.
 //
 //   cargo build --locked --release --target wasm32-wasip1 && node scripts/inspect-fixtures.ts [--json]
@@ -54,9 +54,9 @@ function shape(bytes: Uint8Array): Shape {
   return { memories, tables, start };
 }
 
-const table: unknown = JSON.parse(await readFile(join(root, "docs/wasi-preview1-imports.json"), "utf8"));
+const table: unknown = JSON.parse(await readFile(join(root, "test/wasi-preview1-imports.json"), "utf8"));
 const listed: unknown = typeof table === "object" && table !== null ? Reflect.get(table, "imports") : undefined;
-if (!Array.isArray(listed)) throw new Error("docs/wasi-preview1-imports.json has no imports list");
+if (!Array.isArray(listed)) throw new Error("test/wasi-preview1-imports.json has no imports list");
 const known = new Map<string, string>();
 for (const entry of listed as readonly unknown[]) {
   if (typeof entry !== "object" || entry === null) throw new Error("an import entry must be an object");
@@ -64,7 +64,7 @@ for (const entry of listed as readonly unknown[]) {
   if (typeof name !== "string" || typeof disposition !== "string") throw new Error("an import entry needs a name and a disposition");
   known.set(name, disposition);
 }
-if (known.size !== 46) throw new Error(`docs/wasi-preview1-imports.json classifies ${String(known.size)} imports, not 46`);
+if (known.size !== 46) throw new Error(`test/wasi-preview1-imports.json classifies ${String(known.size)} imports, not 46`);
 
 interface Entry extends Shape {
   readonly bytes: number;
