@@ -4,12 +4,12 @@ An OxideVM module for Rust programs compiled to WebAssembly (`wasm32-wasip1`): e
 VM, with the caller's arguments, environment and standard streams, the VM's live files, and, through a small bridge
 crate, native Linux programs and VM sockets.
 
-Experimental: the first release, 0.1.0, needs OxideVM SDK and CLI 0.0.14 or later.
+Experimental: 0.1.x needs OxideVM SDK and CLI 0.0.14 or later.
 
 ## Use it
 
 ```sh
-oxidevm wasm add github:spacia-ai/oxidevm-rust@v0.1.0
+oxidevm wasm add github:spacia-ai/oxidevm-rust@v0.1.1
 ```
 
 The command shows what the module declares and asks before it installs anything. A module is code that runs in a worker of
